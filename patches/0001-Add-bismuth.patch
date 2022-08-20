@@ -1,0 +1,202 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hygon <hygon806@gmail.com>
+Date: Wed, 3 Aug 2022 17:57:29 +0200
+Subject: [PATCH] Add bismuth
+
+
+diff --git a/build.gradle.kts b/build.gradle.kts
+index 2d01fa83b1f1a73876fe9c6d9120ad043666deaa..557f68f9c469c71a9f6df3017800b7abb9f7414f 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -80,6 +80,8 @@ dependencies {
+     // Minestom Data (From MinestomDataGenerator)
+     implementation(libs.minestomData)
+ 
++    api(libs.bismuth)
++
+     // NBT parsing/manipulation/saving
+     api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
+     api("io.github.jglrxavpok.hephaistos:gson:${libs.versions.hephaistos.get()}")
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 0c9a95d015233c25c61bb7f01a2dd92a5a54bf23..21713e2e53f80b9faffbb866717e4142cc4aaeec 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -39,6 +39,8 @@ jmh = "1.35"
+ # JCStress
+ jcstress = "0.8"
+ 
++bismuth = "1.0"
++
+ [libraries]
+ 
+ # Important Dependencies
+@@ -96,6 +98,8 @@ jmh-annotationprocessor = { group = "org.openjdk.jmh", name = "jmh-generator-ann
+ # JCStress
+ jcstress-core = { group = "org.openjdk.jcstress", name = "jcstress-core", version.ref = "jcstress" }
+ 
++bismuth = { group = "net.defade.bismuth", name = "client", version.ref = "bismuth" }
++
+ [bundles]
+ 
+ kotlin = ["kotlin-stdlib-jdk8", "kotlin-reflect"]
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index 491db1ddd441c3f6f50edccdf4982ecd4a328599..116279d1ddcc70106fa45d03e66246d9794a9cd4 100644
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -5,6 +5,10 @@ dependencyResolutionManagement {
+     repositories {
+         maven("https://jitpack.io")
+         mavenCentral()
++        maven("https://repo.defade.net/defade") {
++            name = "defade"
++            credentials(PasswordCredentials::class)
++        }
+     }
+ }
+ 
+diff --git a/src/main/java/net/defade/yokura/YokuraPacketListener.java b/src/main/java/net/defade/yokura/YokuraPacketListener.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..f12c90184c2439134b7e47c9e41cbb538f647681
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/YokuraPacketListener.java
+@@ -0,0 +1,10 @@
++package net.defade.yokura;
++
++import net.defade.bismuth.core.listeners.client.YokuraClientPacketListener;
++import net.defade.bismuth.core.servers.GameType;
++
++public class YokuraPacketListener extends YokuraClientPacketListener {
++    public YokuraPacketListener(GameType gameType) {
++        super(gameType);
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/config/YokuraConfig.java b/src/main/java/net/defade/yokura/config/YokuraConfig.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..059ad3cd6722b0712bfc51d31ee596bcd0db6c4a
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/config/YokuraConfig.java
+@@ -0,0 +1,50 @@
++package net.defade.yokura.config;
++
++import java.io.File;
++import java.io.FileInputStream;
++import java.io.FileOutputStream;
++import java.io.IOException;
++import java.util.Base64;
++import java.util.Properties;
++
++public class YokuraConfig {
++    private final String bismuthHost;
++    private final int bismuthPort;
++    private final byte[] bismuthPassword;
++
++    public YokuraConfig(String bismuthHost, int bismuthPort, byte[] bismuthPassword) {
++        this.bismuthHost = bismuthHost;
++        this.bismuthPort = bismuthPort;
++        this.bismuthPassword = bismuthPassword;
++    }
++
++    public YokuraConfig(File file) throws IOException {
++        Properties properties = new Properties();
++
++        if(file.exists()) {
++            properties.load(new FileInputStream(file));
++        } else {
++            properties.put("bismuth-host", "localhost");
++            properties.put("bismuth-port", "9600");
++            properties.put("bismuth-password", "");
++
++            properties.store(new FileOutputStream(file), "");
++        }
++
++        this.bismuthHost = properties.getProperty("bismuth-host", "localhost");
++        this.bismuthPort = Integer.parseInt(properties.getProperty("bismuth-port", "9600"));
++        this.bismuthPassword = Base64.getDecoder().decode(properties.getProperty("bismuth-password", ""));
++    }
++
++    public String getBismuthHost() {
++        return bismuthHost;
++    }
++
++    public int getBismuthPort() {
++        return bismuthPort;
++    }
++
++    public byte[] getBismuthPassword() {
++        return bismuthPassword;
++    }
++}
+diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
+index 91379c82f0bec6c2586c91157d41776903788bb8..e9a8f92bce61a8d70b2c49df727a2892c9ec18ee 100644
+--- a/src/main/java/net/minestom/server/ServerProcessImpl.java
++++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
+@@ -1,6 +1,9 @@
+ package net.minestom.server;
+ 
+ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
++import net.defade.bismuth.client.BismuthClient;
++import net.defade.yokura.YokuraPacketListener;
++import net.defade.yokura.config.YokuraConfig;
+ import net.minestom.server.advancements.AdvancementManager;
+ import net.minestom.server.adventure.bossbar.BossBarManager;
+ import net.minestom.server.command.CommandManager;
+@@ -35,11 +38,13 @@ import net.minestom.server.world.biomes.BiomeManager;
+ import org.jetbrains.annotations.NotNull;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+-
++import java.io.File;
+ import java.io.IOException;
+ import java.net.SocketAddress;
+ import java.util.ArrayList;
+ import java.util.List;
++import java.util.concurrent.CompletableFuture;
++import java.util.concurrent.ExecutionException;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.concurrent.atomic.AtomicReference;
+ 
+@@ -72,6 +77,8 @@ final class ServerProcessImpl implements ServerProcess {
+     private final AtomicBoolean started = new AtomicBoolean();
+     private final AtomicBoolean stopped = new AtomicBoolean();
+ 
++    private YokuraPacketListener bismuth;
++
+     public ServerProcessImpl() throws IOException {
+         this.exception = new ExceptionManager();
+         this.extension = new ExtensionManager(this);
+@@ -208,6 +215,26 @@ final class ServerProcessImpl implements ServerProcess {
+             throw new IllegalStateException("Server already started");
+         }
+ 
++        File configFile = new File(System.getProperty("ConfigFile", System.getProperty("user.home") + File.separator + "yokura.properties"));
++        YokuraConfig yokuraConfig;
++        try {
++            yokuraConfig = new YokuraConfig(configFile);
++        } catch (IOException e) {
++            exception.handleException(e);
++            throw new RuntimeException(e);
++        }
++
++        bismuth = new YokuraPacketListener(new net.defade.bismuth.core.servers.GameType("unknown", "unknown"));
++
++        BismuthClient bismuthClient = new BismuthClient(yokuraConfig.getBismuthHost(), yokuraConfig.getBismuthPort(), yokuraConfig.getBismuthPassword());
++        CompletableFuture<Void> connectFuture = bismuthClient.connect(bismuth);
++        try {
++            connectFuture.get();
++        } catch (InterruptedException | ExecutionException e) {
++            exception.handleException(e);
++            throw new RuntimeException(e);
++        }
++
+         extension.start();
+         extension.gotoPreInit();
+ 
+@@ -317,4 +344,8 @@ final class ServerProcessImpl implements ServerProcess {
+             dispatcher().refreshThreads(tickTime);
+         }
+     }
++
++    public YokuraPacketListener getBismuth() {
++        return bismuth;
++    }
+ }
