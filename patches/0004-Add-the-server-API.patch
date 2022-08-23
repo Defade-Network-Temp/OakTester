@@ -1,0 +1,310 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hygon <hygon806@gmail.com>
+Date: Mon, 22 Aug 2022 22:53:52 +0200
+Subject: [PATCH] Add the server API
+
+
+diff --git a/src/main/java/net/defade/yokura/YokuraPacketListener.java b/src/main/java/net/defade/yokura/YokuraPacketListener.java
+index ee217f46c7e1a1878368e7235215934663523bca..2d21e076c10543eb637f0f6c66e889e85f4b2529 100644
+--- a/src/main/java/net/defade/yokura/YokuraPacketListener.java
++++ b/src/main/java/net/defade/yokura/YokuraPacketListener.java
+@@ -3,12 +3,16 @@ package net.defade.yokura;
+ import net.defade.bismuth.core.listeners.client.YokuraClientPacketListener;
+ import net.defade.bismuth.core.protocol.packets.yokura.client.*;
+ import net.defade.bismuth.core.servers.Server;
++import net.defade.yokura.servers.ServerAPIImpl;
+ import net.minestom.server.MinecraftServer;
+ import net.minestom.server.extras.velocity.VelocityProxy;
+ 
+ public class YokuraPacketListener extends YokuraClientPacketListener {
+-    public YokuraPacketListener(String serverId) {
++    private final ServerAPIImpl serverAPI;
++
++    public YokuraPacketListener(String serverId, ServerAPIImpl serverAPI) {
+         super(serverId);
++        this.serverAPI = serverAPI;
+     }
+ 
+     @Override
+@@ -18,22 +22,24 @@ public class YokuraPacketListener extends YokuraClientPacketListener {
+ 
+     @Override
+     public void handleServersList(ClientboundServersListPacket clientboundServersListPacket) {
+-
++        for (Server server : clientboundServersListPacket.getServers()) {
++            serverAPI.registerServer(server);
++        }
+     }
+ 
+     @Override
+     public void handleCreatedServer(ClientboundCreatedServerPacket clientboundCreatedServerPacket) {
+-
++        serverAPI.registerServer(clientboundCreatedServerPacket.getServer());
+     }
+ 
+     @Override
+     public void handleDeletedServer(ClientboundDeletedServerPacket clientboundDeletedServerPacket) {
+-
++        serverAPI.unregisterServer(clientboundDeletedServerPacket.getServer());
+     }
+ 
+     @Override
+     public void handleUpdateServerStatus(ClientboundUpdateServerStatusPacket clientboundUpdateServerStatusPacket) {
+-
++        serverAPI.updateServerStatus(clientboundUpdateServerStatusPacket.getServer(), clientboundUpdateServerStatusPacket.getServerStatus());
+     }
+ 
+     @Override
+diff --git a/src/main/java/net/defade/yokura/servers/ServerAPI.java b/src/main/java/net/defade/yokura/servers/ServerAPI.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..2edbfa14204dcfef2546990814f746de13c0b410
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/servers/ServerAPI.java
+@@ -0,0 +1,21 @@
++package net.defade.yokura.servers;
++
++import net.defade.bismuth.core.servers.GameType;
++import net.defade.bismuth.core.servers.Server;
++import net.defade.bismuth.core.servers.ServerStatus;
++
++import java.util.Set;
++
++public interface ServerAPI {
++    String getServerId();
++
++    ServerStatus getServerStatus();
++
++    void setServerStatus(ServerStatus serverStatus);
++
++    Set<Server> getServers(String miniGame);
++
++    Set<Server> getServers(GameType gameType);
++
++    Set<Server> getServers();
++}
+diff --git a/src/main/java/net/defade/yokura/servers/ServerAPIImpl.java b/src/main/java/net/defade/yokura/servers/ServerAPIImpl.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..1df7780b67ed9ae9d517cbcfd568c6b09e673495
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/servers/ServerAPIImpl.java
+@@ -0,0 +1,86 @@
++package net.defade.yokura.servers;
++
++import net.defade.bismuth.core.protocol.packets.yokura.server.ServerboundUpdateServerStatusPacket;
++import net.defade.bismuth.core.servers.GameType;
++import net.defade.bismuth.core.servers.Server;
++import net.defade.bismuth.core.servers.ServerStatus;
++import net.minestom.server.MinecraftServer;
++import java.util.HashMap;
++import java.util.HashSet;
++import java.util.Map;
++import java.util.Set;
++
++public class ServerAPIImpl implements ServerAPI {
++    private final Map<GameType, Set<Server>> servers = new HashMap<>();
++
++    @Override
++    public String getServerId() {
++        return MinecraftServer.getBismuth().getServer().getServerId();
++    }
++
++    @Override
++    public ServerStatus getServerStatus() {
++        return MinecraftServer.getBismuth().getServer().getServerStatus();
++    }
++
++    @Override
++    public void setServerStatus(ServerStatus serverStatus) {
++        MinecraftServer.getBismuth().getServer().setServerStatus(serverStatus);
++        MinecraftServer.getBismuth().sendPacket(new ServerboundUpdateServerStatusPacket(serverStatus));
++    }
++
++    @Override
++    public Set<Server> getServers(String miniGame) {
++        Set<Server> servers = new HashSet<>();
++
++        this.servers.forEach((gameType, server) -> {
++            if(gameType.getMiniGame().equals(miniGame)) {
++                servers.addAll(server);
++            }
++        });
++
++        return servers;
++    }
++
++    @Override
++    public Set<Server> getServers(GameType gameType) {
++        return new HashSet<>(servers.getOrDefault(gameType, new HashSet<>()));
++    }
++
++    @Override
++    public Set<Server> getServers() {
++        Set<Server> servers = new HashSet<>();
++        for (Set<Server> server : this.servers.values()) {
++            servers.addAll(server);
++        }
++
++        return servers;
++    }
++
++    public void registerServer(Server server) {
++        if (!servers.containsKey(server.getGameType())) {
++            servers.put(server.getGameType(), new HashSet<>());
++        }
++
++        servers.get(server.getGameType()).add(server);
++    }
++
++    public void unregisterServer(Server server) {
++        if(servers.containsKey(server.getGameType())) {
++            servers.get(server.getGameType()).remove(server);
++        }
++    }
++
++    public void updateServerStatus(Server server, ServerStatus serverStatus) {
++        if(!servers.containsKey(server.getGameType())) {
++            registerServer(server);
++        } else {
++            for (Server servers : servers.get(server.getGameType())) {
++                if(servers.equals(server)) {
++                    servers.setServerStatus(serverStatus);
++                    break;
++                }
++            }
++        }
++    }
++}
+diff --git a/src/main/java/net/minestom/server/MinecraftServer.java b/src/main/java/net/minestom/server/MinecraftServer.java
+index bff2c0698041abe73265da98d6013fe1deeb67b7..c4349e700e81172c9ae8e85fe9dc8b87b6dfe75a 100644
+--- a/src/main/java/net/minestom/server/MinecraftServer.java
++++ b/src/main/java/net/minestom/server/MinecraftServer.java
+@@ -1,6 +1,7 @@
+ package net.minestom.server;
+ 
+ import net.defade.yokura.YokuraPacketListener;
++import net.defade.yokura.servers.ServerAPI;
+ import net.minestom.server.advancements.AdvancementManager;
+ import net.minestom.server.adventure.bossbar.BossBarManager;
+ import net.minestom.server.command.CommandManager;
+@@ -316,6 +317,10 @@ public final class MinecraftServer {
+         return serverProcess.bismuth();
+     }
+ 
++    public static ServerAPI getServerAPI() {
++        return serverProcess.serverApi();
++    }
++
+     /**
+      * Starts the server.
+      * <p>
+diff --git a/src/main/java/net/minestom/server/ServerProcess.java b/src/main/java/net/minestom/server/ServerProcess.java
+index cdf6ef96681f3cd3680902463bb5ac896867e378..4c1528b7ce0ee44a8de5675179b56c4da64f6e68 100644
+--- a/src/main/java/net/minestom/server/ServerProcess.java
++++ b/src/main/java/net/minestom/server/ServerProcess.java
+@@ -1,5 +1,6 @@
+ package net.minestom.server;
+ 
++import net.defade.yokura.servers.ServerAPI;
+ import net.defade.yokura.YokuraPacketListener;
+ import net.minestom.server.advancements.AdvancementManager;
+ import net.minestom.server.adventure.bossbar.BossBarManager;
+@@ -144,6 +145,11 @@ public interface ServerProcess extends Snapshotable {
+      */
+     @NotNull YokuraPacketListener bismuth();
+ 
++    /**
++     * Keeps track of the servers on the network.
++     */
++    @NotNull ServerAPI serverApi();
++
+     void start(@NotNull SocketAddress socketAddress);
+ 
+     void stop();
+diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
+index 4b01fe32bf389f4ecce5dad559fe689367586b64..f787808fa965f7abbcf1ee49613e2296c7047f30 100644
+--- a/src/main/java/net/minestom/server/ServerProcessImpl.java
++++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
+@@ -2,9 +2,10 @@ package net.minestom.server;
+ 
+ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+ import net.defade.bismuth.client.BismuthClient;
+-import net.defade.bismuth.core.servers.ServerStatus;
+ import net.defade.yokura.YokuraPacketListener;
+ import net.defade.yokura.config.YokuraConfig;
++import net.defade.yokura.servers.ServerAPI;
++import net.defade.yokura.servers.ServerAPIImpl;
+ import net.minestom.server.advancements.AdvancementManager;
+ import net.minestom.server.adventure.bossbar.BossBarManager;
+ import net.minestom.server.command.CommandManager;
+@@ -74,6 +75,7 @@ final class ServerProcessImpl implements ServerProcess {
+     private final ThreadDispatcher<Chunk> dispatcher;
+     private final Ticker ticker;
+ 
++    private final ServerAPIImpl serverAPI;
+     private final YokuraPacketListener bismuth;
+ 
+     private final AtomicBoolean started = new AtomicBoolean();
+@@ -103,7 +105,8 @@ final class ServerProcessImpl implements ServerProcess {
+         this.dispatcher = ThreadDispatcher.singleThread();
+         this.ticker = new TickerImpl();
+ 
+-        this.bismuth = new YokuraPacketListener(YokuraConfig.serverId);
++        this.serverAPI = new ServerAPIImpl();
++        this.bismuth = new YokuraPacketListener(YokuraConfig.serverId, serverAPI);
+     }
+ 
+     @Override
+@@ -216,6 +219,11 @@ final class ServerProcessImpl implements ServerProcess {
+         return bismuth;
+     }
+ 
++    @Override
++    public @NotNull ServerAPI serverApi() {
++        return serverAPI;
++    }
++
+     @Override
+     public void start(@NotNull SocketAddress socketAddress) {
+         if (!started.compareAndSet(false, true)) {
+diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
+index a95545f13b159b9e1664fcf725d668eb975b03ec..eee8b88643dd13afd91bbc43c9c724a00e77afed 100644
+--- a/src/main/java/net/minestom/server/entity/Player.java
++++ b/src/main/java/net/minestom/server/entity/Player.java
+@@ -1,5 +1,6 @@
+ package net.minestom.server.entity;
+ 
++import net.defade.bismuth.core.servers.Server;
+ import net.kyori.adventure.audience.MessageType;
+ import net.kyori.adventure.bossbar.BossBar;
+ import net.kyori.adventure.identity.Identified;
+@@ -659,6 +660,30 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+         sendPluginMessage(channel, message.getBytes(StandardCharsets.UTF_8));
+     }
+ 
++    /**
++     * Sends the player the specified server on the network.
++     *
++     * @param server the server
++     */
++    public void sendToServer(@NotNull Server server) {
++        sendToServer(server.getServerId());
++    }
++
++    /**
++     * Sends the player the specified server on the network.
++     *
++     * @param server the server name
++     */
++    public void sendToServer(@NotNull String server) {
++        java.nio.ByteBuffer byteBuffer = java.nio.ByteBuffer.allocate(2 + 7 + 2 + server.length());
++        byteBuffer.putShort((short) 7) //
++                .put(new byte[] {'C', 'o', 'n', 'n', 'e', 'c', 't'})
++                .putShort((short) server.length())
++                .put(server.getBytes(StandardCharsets.UTF_8));
++
++        sendPluginMessage("bungeecord:main", byteBuffer.array());
++    }
++
+     @Override
+     public void sendMessage(@NotNull Identity source, @NotNull Component message, @NotNull MessageType type) {
+         Messenger.sendMessage(this, message, ChatPosition.fromMessageType(type), source.uuid());
