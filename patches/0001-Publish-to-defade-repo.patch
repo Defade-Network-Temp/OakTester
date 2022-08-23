@@ -1,0 +1,70 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hygon <hygon806@gmail.com>
+Date: Mon, 22 Aug 2022 22:53:52 +0200
+Subject: [PATCH] Publish to defade repo
+
+
+diff --git a/build-logic/src/main/kotlin/minestom.publishing-conventions.gradle.kts b/build-logic/src/main/kotlin/minestom.publishing-conventions.gradle.kts
+index b63a95323b4e20af1c36f29f24c623d978016696..a9518601c3775e9a3654f410b7f5eecef54774c3 100644
+--- a/build-logic/src/main/kotlin/minestom.publishing-conventions.gradle.kts
++++ b/build-logic/src/main/kotlin/minestom.publishing-conventions.gradle.kts
+@@ -1,32 +1,18 @@
+ plugins {
+-    id("net.kyori.indra")
+-    id("net.kyori.indra.publishing")
+-    id("net.kyori.indra.publishing.sonatype")
++    id("maven-publish")
+ }
+ 
+-indra {
+-    javaVersions {
+-        target(17)
+-        testWith(17)
++configure<PublishingExtension> {
++    publications.create<MavenPublication>("maven") {
++        from(components["java"])
+     }
++}
+ 
+-    github("Minestom", "Minestom") {
+-        ci(true)
+-    }
+-    apache2License()
+-
+-    configurePublications {
+-        pom {
+-            developers {
+-                developer {
+-                    id.set("TheMode")
+-                    name.set("TheMode")
+-                }
+-                developer {
+-                    id.set("jglrxavpok")
+-                    name.set("jglrxavpok")
+-                }
+-            }
++publishing {
++    repositories {
++        maven("https://repo.defade.net/defade") {
++            name = "defade"
++            credentials(PasswordCredentials::class)
+         }
+     }
+ }
+\ No newline at end of file
+diff --git a/build.gradle.kts b/build.gradle.kts
+index 2d01fa83b1f1a73876fe9c6d9120ad043666deaa..0dae157034f5bf2d6fb5780565d068a9db8ad035 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -5,9 +5,8 @@ plugins {
+ }
+ 
+ allprojects {
+-    group = "net.minestom.server"
+-    version = "1.0"
+-    description = "Lightweight and multi-threaded Minecraft server implementation"
++    group = "net.defade"
++    version = "1.19.1-R1.0-SNAPSHOT"
+ }
+ 
+ sourceSets {

@@ -1,0 +1,221 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hygon <hygon806@gmail.com>
+Date: Wed, 3 Aug 2022 17:57:29 +0200
+Subject: [PATCH] Add bismuth
+
+
+diff --git a/build.gradle.kts b/build.gradle.kts
+index 0dae157034f5bf2d6fb5780565d068a9db8ad035..8ec029d7421dac729be7151d24e5379b87668625 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -79,6 +79,8 @@ dependencies {
+     // Minestom Data (From MinestomDataGenerator)
+     implementation(libs.minestomData)
+
++    api(libs.bismuth)
++
+     // NBT parsing/manipulation/saving
+     api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
+     api("io.github.jglrxavpok.hephaistos:gson:${libs.versions.hephaistos.get()}")
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 0c9a95d015233c25c61bb7f01a2dd92a5a54bf23..a81d8a7507e204b9b265fc1df3c9f1777d8d6b60 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -39,6 +39,8 @@ jmh = "1.35"
+ # JCStress
+ jcstress = "0.8"
+
++bismuth = "1.0-SNAPSHOT"
++
+ [libraries]
+
+ # Important Dependencies
+@@ -96,6 +98,8 @@ jmh-annotationprocessor = { group = "org.openjdk.jmh", name = "jmh-generator-ann
+ # JCStress
+ jcstress-core = { group = "org.openjdk.jcstress", name = "jcstress-core", version.ref = "jcstress" }
+
++bismuth = { group = "net.defade.bismuth", name = "client", version.ref = "bismuth" }
++
+ [bundles]
+
+ kotlin = ["kotlin-stdlib-jdk8", "kotlin-reflect"]
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index 491db1ddd441c3f6f50edccdf4982ecd4a328599..116279d1ddcc70106fa45d03e66246d9794a9cd4 100644
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -5,6 +5,10 @@ dependencyResolutionManagement {
+     repositories {
+         maven("https://jitpack.io")
+         mavenCentral()
++        maven("https://repo.defade.net/defade") {
++            name = "defade"
++            credentials(PasswordCredentials::class)
++        }
+     }
+ }
+
+diff --git a/src/main/java/net/defade/yokura/YokuraPacketListener.java b/src/main/java/net/defade/yokura/YokuraPacketListener.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..d8cab98d6c64309d8db6f6c2f45cf5e4e2b44653
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/YokuraPacketListener.java
+@@ -0,0 +1,41 @@
++package net.defade.yokura;
++
++import net.defade.bismuth.core.listeners.client.YokuraClientPacketListener;
++import net.defade.bismuth.core.protocol.packets.yokura.client.*;
++import net.defade.bismuth.core.servers.Server;
++
++public class YokuraPacketListener extends YokuraClientPacketListener {
++    public YokuraPacketListener(String serverId) {
++        super(serverId);
++    }
++
++    @Override
++    public void handleForwardingKey(ClientboundForwardingKeyPacket clientboundForwardingKeyPacket) {
++
++    }
++
++    @Override
++    public void handleServersList(ClientboundServersListPacket clientboundServersListPacket) {
++
++    }
++
++    @Override
++    public void handleCreatedServer(ClientboundCreatedServerPacket clientboundCreatedServerPacket) {
++
++    }
++
++    @Override
++    public void handleDeletedServer(ClientboundDeletedServerPacket clientboundDeletedServerPacket) {
++
++    }
++
++    @Override
++    public void handleUpdateServerStatus(ClientboundUpdateServerStatusPacket clientboundUpdateServerStatusPacket) {
++
++    }
++
++    @Override
++    public void handleStopServer(ClientboundStopServerPacket clientboundStopServerPacket) {
++
++    }
++}
+diff --git a/src/main/java/net/minestom/server/MinecraftServer.java b/src/main/java/net/minestom/server/MinecraftServer.java
+index 993a9123dba9442173133700b091b8ebbe1b98e4..bff2c0698041abe73265da98d6013fe1deeb67b7 100644
+--- a/src/main/java/net/minestom/server/MinecraftServer.java
++++ b/src/main/java/net/minestom/server/MinecraftServer.java
+@@ -1,5 +1,6 @@
+ package net.minestom.server;
+
++import net.defade.yokura.YokuraPacketListener;
+ import net.minestom.server.advancements.AdvancementManager;
+ import net.minestom.server.adventure.bossbar.BossBarManager;
+ import net.minestom.server.command.CommandManager;
+@@ -311,6 +312,10 @@ public final class MinecraftServer {
+         return serverProcess.server();
+     }
+
++    public static YokuraPacketListener getBismuth() {
++        return serverProcess.bismuth();
++    }
++
+     /**
+      * Starts the server.
+      * <p>
+diff --git a/src/main/java/net/minestom/server/ServerProcess.java b/src/main/java/net/minestom/server/ServerProcess.java
+index 89ec44a64d04b59006fcbea7a5616c0ccbaf0030..cdf6ef96681f3cd3680902463bb5ac896867e378 100644
+--- a/src/main/java/net/minestom/server/ServerProcess.java
++++ b/src/main/java/net/minestom/server/ServerProcess.java
+@@ -1,5 +1,6 @@
+ package net.minestom.server;
+
++import net.defade.yokura.YokuraPacketListener;
+ import net.minestom.server.advancements.AdvancementManager;
+ import net.minestom.server.adventure.bossbar.BossBarManager;
+ import net.minestom.server.command.CommandManager;
+@@ -138,6 +139,11 @@ public interface ServerProcess extends Snapshotable {
+      */
+     @NotNull Ticker ticker();
+
++    /**
++     * Handles bismuth's packets.
++     */
++    @NotNull YokuraPacketListener bismuth();
++
+     void start(@NotNull SocketAddress socketAddress);
+
+     void stop();
+diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
+index 91379c82f0bec6c2586c91157d41776903788bb8..1c03da5b81d7a165b9af6610e4a92acd88087a0b 100644
+--- a/src/main/java/net/minestom/server/ServerProcessImpl.java
++++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
+@@ -1,6 +1,9 @@
+ package net.minestom.server;
+
+ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
++import net.defade.bismuth.client.BismuthClient;
++import net.defade.bismuth.core.servers.ServerStatus;
++import net.defade.yokura.YokuraPacketListener;
+ import net.minestom.server.advancements.AdvancementManager;
+ import net.minestom.server.adventure.bossbar.BossBarManager;
+ import net.minestom.server.command.CommandManager;
+@@ -35,11 +38,12 @@ import net.minestom.server.world.biomes.BiomeManager;
+ import org.jetbrains.annotations.NotNull;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+-
+ import java.io.IOException;
+ import java.net.SocketAddress;
+ import java.util.ArrayList;
+ import java.util.List;
++import java.util.concurrent.CompletableFuture;
++import java.util.concurrent.ExecutionException;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.concurrent.atomic.AtomicReference;
+
+@@ -69,6 +73,8 @@ final class ServerProcessImpl implements ServerProcess {
+     private final ThreadDispatcher<Chunk> dispatcher;
+     private final Ticker ticker;
+
++    private final YokuraPacketListener bismuth;
++
+     private final AtomicBoolean started = new AtomicBoolean();
+     private final AtomicBoolean stopped = new AtomicBoolean();
+
+@@ -95,6 +101,8 @@ final class ServerProcessImpl implements ServerProcess {
+
+         this.dispatcher = ThreadDispatcher.singleThread();
+         this.ticker = new TickerImpl();
++
++        this.bismuth = new YokuraPacketListener("");
+     }
+
+     @Override
+@@ -202,12 +210,26 @@ final class ServerProcessImpl implements ServerProcess {
+         return ticker;
+     }
+
++    @Override
++    public @NotNull YokuraPacketListener bismuth() {
++        return bismuth;
++    }
++
+     @Override
+     public void start(@NotNull SocketAddress socketAddress) {
+         if (!started.compareAndSet(false, true)) {
+             throw new IllegalStateException("Server already started");
+         }
+
++        BismuthClient bismuthClient = new BismuthClient("localhost", 9600, new byte[0]);
++        CompletableFuture<Void> connectFuture = bismuthClient.connect(bismuth);
++        try {
++            connectFuture.get();
++        } catch (InterruptedException | ExecutionException e) {
++            exception.handleException(e);
++            throw new RuntimeException(e);
++        }
++
+         extension.start();
+         extension.gotoPreInit();
+

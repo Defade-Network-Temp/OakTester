@@ -1,0 +1,199 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hygon <hygon806@gmail.com>
+Date: Sun, 21 Aug 2022 23:29:22 +0200
+Subject: [PATCH] Add server system
+
+
+diff --git a/build.gradle.kts b/build.gradle.kts
+index 8ec029d7421dac729be7151d24e5379b87668625..dfd40fc7e25948abb66b09ae27df4c941b4284e6 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -1,7 +1,11 @@
++import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
++
+ plugins {
+     `java-library`
++    application
+     id("minestom.publishing-conventions")
+     id("minestom.native-conventions")
++    id("com.github.johnrengelman.shadow") version ("7.1.1")
+ }
+ 
+ allprojects {
+@@ -40,6 +44,13 @@ tasks {
+     }
+ }
+ 
++application {
++    mainClass.set("net.defade.yokura.Main")
++    // This is included because Shadow is buggy. Wait for https://github.com/johnrengelman/shadow/issues/613 to befixed.
++    @Suppress("DEPRECATION")
++    mainClassName = "net.defade.yokura.Main"
++}
++
+ dependencies {
+     // Junit Testing Framework
+     testImplementation(libs.junit.api)
+@@ -85,3 +96,7 @@ dependencies {
+     api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
+     api("io.github.jglrxavpok.hephaistos:gson:${libs.versions.hephaistos.get()}")
+ }
++
++tasks.withType<ShadowJar> {
++    archiveFileName.set("yokura.jar")
++}
+\ No newline at end of file
+diff --git a/src/main/java/net/defade/yokura/Main.java b/src/main/java/net/defade/yokura/Main.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b7dffd61448f0cd456d414a12904771f0dd2bd8
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/Main.java
+@@ -0,0 +1,18 @@
++package net.defade.yokura;
++
++import net.defade.yokura.config.YokuraConfig;
++import net.minestom.server.MinecraftServer;
++import java.io.IOException;
++
++public class Main {
++    public static void main(String[] args) {
++        try {
++            YokuraConfig.init(args);
++        } catch (IOException exception) {
++            exception.printStackTrace();
++        }
++
++        MinecraftServer minecraftServer = MinecraftServer.init();
++        minecraftServer.start("0.0.0.0", 25565);
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/YokuraPacketListener.java b/src/main/java/net/defade/yokura/YokuraPacketListener.java
+index d8cab98d6c64309d8db6f6c2f45cf5e4e2b44653..ee217f46c7e1a1878368e7235215934663523bca 100644
+--- a/src/main/java/net/defade/yokura/YokuraPacketListener.java
++++ b/src/main/java/net/defade/yokura/YokuraPacketListener.java
+@@ -3,6 +3,8 @@ package net.defade.yokura;
+ import net.defade.bismuth.core.listeners.client.YokuraClientPacketListener;
+ import net.defade.bismuth.core.protocol.packets.yokura.client.*;
+ import net.defade.bismuth.core.servers.Server;
++import net.minestom.server.MinecraftServer;
++import net.minestom.server.extras.velocity.VelocityProxy;
+ 
+ public class YokuraPacketListener extends YokuraClientPacketListener {
+     public YokuraPacketListener(String serverId) {
+@@ -11,7 +13,7 @@ public class YokuraPacketListener extends YokuraClientPacketListener {
+ 
+     @Override
+     public void handleForwardingKey(ClientboundForwardingKeyPacket clientboundForwardingKeyPacket) {
+-
++        VelocityProxy.enable(clientboundForwardingKeyPacket.getForwardingKey());
+     }
+ 
+     @Override
+@@ -36,6 +38,6 @@ public class YokuraPacketListener extends YokuraClientPacketListener {
+ 
+     @Override
+     public void handleStopServer(ClientboundStopServerPacket clientboundStopServerPacket) {
+-
++        MinecraftServer.stopCleanly();
+     }
+ }
+diff --git a/src/main/java/net/defade/yokura/config/YokuraConfig.java b/src/main/java/net/defade/yokura/config/YokuraConfig.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..eda15310aca7a6ea724e7d7348ac72d9e2b7b03c
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/config/YokuraConfig.java
+@@ -0,0 +1,39 @@
++package net.defade.yokura.config;
++
++import java.io.IOException;
++import java.util.Arrays;
++import java.util.Base64;
++import java.util.HashMap;
++import java.util.Map;
++
++public class YokuraConfig {
++    public static String bismuthHost = "172.17.0.1";
++    public static int bismuthPort = 9600;
++    public static byte[] bismuthPassword = new byte[0];
++    public static String serverId = "";
++
++    public static void init(String[] args) throws IOException {
++        Map<String, String> arguments = new HashMap<>();
++
++        for (String arg : args) {
++            if (arg.startsWith("--")) {
++                arg = arg.replace("--", "");
++                String[] argument = arg.split("=", 2);
++                System.out.println(Arrays.toString(argument));
++                arguments.put(argument[0], argument[1]);
++            }
++        }
++
++        bismuthHost = arguments.getOrDefault("bismuth-host", bismuthHost);
++
++        if(arguments.containsKey("bismuth-port")) {
++            bismuthPort = Integer.parseInt(arguments.get("bismuth-port"));
++        }
++
++        if(arguments.containsKey("bismuth-password")) {
++            bismuthPassword = Base64.getDecoder().decode(arguments.get("bismuth-password"));
++        }
++
++        serverId = arguments.getOrDefault("server-id", serverId);
++    }
++}
+diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
+index 1c03da5b81d7a165b9af6610e4a92acd88087a0b..4b01fe32bf389f4ecce5dad559fe689367586b64 100644
+--- a/src/main/java/net/minestom/server/ServerProcessImpl.java
++++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
+@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+ import net.defade.bismuth.client.BismuthClient;
+ import net.defade.bismuth.core.servers.ServerStatus;
+ import net.defade.yokura.YokuraPacketListener;
++import net.defade.yokura.config.YokuraConfig;
+ import net.minestom.server.advancements.AdvancementManager;
+ import net.minestom.server.adventure.bossbar.BossBarManager;
+ import net.minestom.server.command.CommandManager;
+@@ -102,7 +103,7 @@ final class ServerProcessImpl implements ServerProcess {
+         this.dispatcher = ThreadDispatcher.singleThread();
+         this.ticker = new TickerImpl();
+ 
+-        this.bismuth = new YokuraPacketListener("");
++        this.bismuth = new YokuraPacketListener(YokuraConfig.serverId);
+     }
+ 
+     @Override
+@@ -221,7 +222,7 @@ final class ServerProcessImpl implements ServerProcess {
+             throw new IllegalStateException("Server already started");
+         }
+ 
+-        BismuthClient bismuthClient = new BismuthClient("localhost", 9600, new byte[0]);
++        BismuthClient bismuthClient = new BismuthClient(YokuraConfig.bismuthHost, YokuraConfig.bismuthPort, YokuraConfig.bismuthPassword);
+         CompletableFuture<Void> connectFuture = bismuthClient.connect(bismuth);
+         try {
+             connectFuture.get();
+diff --git a/src/main/java/net/minestom/server/extras/velocity/VelocityProxy.java b/src/main/java/net/minestom/server/extras/velocity/VelocityProxy.java
+index 9fc8923986fe106e8e9693ff9026d829e9cf913c..2aa0bb4dc4ab19aaea113fd3e5c88202dc5e0f55 100644
+--- a/src/main/java/net/minestom/server/extras/velocity/VelocityProxy.java
++++ b/src/main/java/net/minestom/server/extras/velocity/VelocityProxy.java
+@@ -18,7 +18,7 @@ import java.security.NoSuchAlgorithmException;
+ /**
+  * Support for <a href="https://velocitypowered.com/">Velocity</a> modern forwarding.
+  * <p>
+- * Can be enabled by simply calling {@link #enable(String)}.
++ * Can be enabled by simply calling {@link #enable(byte[])}.
+  */
+ public final class VelocityProxy {
+     public static final String PLAYER_INFO_CHANNEL = "velocity:player_info";
+@@ -34,9 +34,9 @@ public final class VelocityProxy {
+      * @param secret the forwarding secret,
+      *               be sure to do not hardcode it in your code but to retrieve it from a file or anywhere else safe
+      */
+-    public static void enable(@NotNull String secret) {
++    public static void enable(@NotNull byte[] secret) {
+         VelocityProxy.enabled = true;
+-        VelocityProxy.key = new SecretKeySpec(secret.getBytes(), MAC_ALGORITHM);
++        VelocityProxy.key = new SecretKeySpec(secret, MAC_ALGORITHM);
+     }
+ 
+     /**
