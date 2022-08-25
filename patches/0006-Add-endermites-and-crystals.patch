@@ -5,7 +5,7 @@ Subject: [PATCH] Add endermites and crystals
 
 
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index eee8b88643dd13afd91bbc43c9c724a00e77afed..824c5c7b94282815d5adc391c71dda047e96133f 100644
+index eee8b88643dd13afd91bbc43c9c724a00e77afed..73cb7537100141b6c73378971b1d8c0e36858055 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
 @@ -1,6 +1,7 @@
