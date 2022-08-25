@@ -1,0 +1,108 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hygon <hygon806@gmail.com>
+Date: Thu, 25 Aug 2022 17:30:34 +0200
+Subject: [PATCH] Add network levels and xp
+
+
+diff --git a/src/main/java/net/defade/yokura/event/player/NetworkLevelChangeEvent.java b/src/main/java/net/defade/yokura/event/player/NetworkLevelChangeEvent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..5eb1137c8818c4529e6c7a6ce1bb55a36fbd5d8d
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/event/player/NetworkLevelChangeEvent.java
+@@ -0,0 +1,24 @@
++package net.defade.yokura.event.player;
++
++import net.minestom.server.entity.Player;
++import net.minestom.server.event.trait.PlayerEvent;
++import org.jetbrains.annotations.NotNull;
++
++public class NetworkLevelChangeEvent implements PlayerEvent {
++    private final Player player;
++    private final int gainedLevels;
++
++    public NetworkLevelChangeEvent(Player player, int gainedLevels) {
++        this.player = player;
++        this.gainedLevels = gainedLevels;
++    }
++
++    public int getGainedLevels() {
++        return gainedLevels;
++    }
++
++    @Override
++    public @NotNull Player getPlayer() {
++        return player;
++    }
++}
+diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
+index 6833e5f3507063b33e98edec704090f07364d4b4..3a1d6f1c2248a0e070f95872d488b7afeabcd969 100644
+--- a/src/main/java/net/minestom/server/entity/Player.java
++++ b/src/main/java/net/minestom/server/entity/Player.java
+@@ -1,6 +1,7 @@
+ package net.minestom.server.entity;
+ 
+ import net.defade.bismuth.core.servers.Server;
++import net.defade.yokura.event.player.NetworkLevelChangeEvent;
+ import net.defade.yokura.utils.MongoUtils;
+ import net.kyori.adventure.audience.MessageType;
+ import net.kyori.adventure.bossbar.BossBar;
+@@ -207,6 +208,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+     // Yokura
+     private double endermites;
+     private double crystals;
++    private int networkLevel;
++    private int networkXp;
+ 
+     public Player(@NotNull UUID uuid, @NotNull String username, @NotNull PlayerConnection playerConnection) {
+         super(EntityType.PLAYER, uuid);
+@@ -247,13 +250,17 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+         if(playerData == null) {
+             playerData = new Document("_id", getUuid().toString())
+                     .append("endermites", MinecraftServer.getBismuth().getNetworkInfos().getDefaultEndermites())
+-                    .append("crystals", MinecraftServer.getBismuth().getNetworkInfos().getDefaultCrystals());
++                    .append("crystals", MinecraftServer.getBismuth().getNetworkInfos().getDefaultCrystals())
++                    .append("level", 0)
++                    .append("xp", 0);
+ 
+             MongoUtils.insertDocument("players", playerData);
+         }
+ 
+         endermites = playerData.getDouble("endermites");
+         crystals = playerData.getDouble("crystals");
++        networkLevel = playerData.getInteger("level");
++        networkXp = playerData.getInteger("xp");
+     }
+ 
+     public void addEndermites(double endermites) {
+@@ -302,6 +309,31 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+         return this.crystals >= crystals;
+     }
+ 
++    public int getNetworkLevel() {
++        return networkLevel;
++    }
++
++    public int getNetworkXp() {
++        return networkXp;
++    }
++
++    public void addNetworkXp(int xp) {
++        if(xp <= 0) return;
++
++        xp = getNetworkXp() + xp;
++        int gainedLevels = xp / 1000;
++
++        this.networkXp = xp % 1000;
++        this.networkLevel = getNetworkLevel() + gainedLevels;
++
++        if(gainedLevels > 0) {
++            EventDispatcher.call(new NetworkLevelChangeEvent(this, gainedLevels));
++            MongoUtils.executeAsync(() -> MongoUtils.updateValue("players", getUuid().toString(), "level", getNetworkLevel()));
++        }
++
++        MongoUtils.executeAsync(() -> MongoUtils.updateValue("players", getUuid().toString(), "xp", getNetworkXp()));
++    }
++
+     /**
+      * Used when the player is created.
+      * Init the player and spawn him.
