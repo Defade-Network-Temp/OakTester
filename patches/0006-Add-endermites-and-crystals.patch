@@ -5,7 +5,7 @@ Subject: [PATCH] Add endermites and crystals
 
 
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index eee8b88643dd13afd91bbc43c9c724a00e77afed..6833e5f3507063b33e98edec704090f07364d4b4 100644
+index eee8b88643dd13afd91bbc43c9c724a00e77afed..824c5c7b94282815d5adc391c71dda047e96133f 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
 @@ -1,6 +1,7 @@
@@ -35,11 +35,10 @@ index eee8b88643dd13afd91bbc43c9c724a00e77afed..6833e5f3507063b33e98edec704090f0
      public Player(@NotNull UUID uuid, @NotNull String username, @NotNull PlayerConnection playerConnection) {
          super(EntityType.PLAYER, uuid);
          this.username = username;
-@@ -234,6 +240,68 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -234,6 +240,67 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
                  .build();
      }
  
-+
 +    public void updatePlayerData() {
 +        Document playerData = MongoUtils.getDocumentFromId("players", getUuid().toString()).orElse(null);
 +

@@ -35,7 +35,7 @@ index 0000000000000000000000000000000000000000..5eb1137c8818c4529e6c7a6ce1bb55a3
 +    }
 +}
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index 6833e5f3507063b33e98edec704090f07364d4b4..3a1d6f1c2248a0e070f95872d488b7afeabcd969 100644
+index 824c5c7b94282815d5adc391c71dda047e96133f..27078a92d73f1a8eab9f98139af334fa00a10018 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
 @@ -1,6 +1,7 @@
@@ -55,7 +55,7 @@ index 6833e5f3507063b33e98edec704090f07364d4b4..3a1d6f1c2248a0e070f95872d488b7af
  
      public Player(@NotNull UUID uuid, @NotNull String username, @NotNull PlayerConnection playerConnection) {
          super(EntityType.PLAYER, uuid);
-@@ -247,13 +250,17 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -246,13 +249,17 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
          if(playerData == null) {
              playerData = new Document("_id", getUuid().toString())
                      .append("endermites", MinecraftServer.getBismuth().getNetworkInfos().getDefaultEndermites())
@@ -74,7 +74,7 @@ index 6833e5f3507063b33e98edec704090f07364d4b4..3a1d6f1c2248a0e070f95872d488b7af
      }
  
      public void addEndermites(double endermites) {
-@@ -302,6 +309,31 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -301,6 +308,31 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
          return this.crystals >= crystals;
      }
  

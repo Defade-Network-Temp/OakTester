@@ -11,7 +11,7 @@ index 0dae157034f5bf2d6fb5780565d068a9db8ad035..8ec029d7421dac729be7151d24e5379b
 @@ -79,6 +79,8 @@ dependencies {
      // Minestom Data (From MinestomDataGenerator)
      implementation(libs.minestomData)
-
+ 
 +    api(libs.bismuth)
 +
      // NBT parsing/manipulation/saving
@@ -24,20 +24,20 @@ index 0c9a95d015233c25c61bb7f01a2dd92a5a54bf23..a81d8a7507e204b9b265fc1df3c9f177
 @@ -39,6 +39,8 @@ jmh = "1.35"
  # JCStress
  jcstress = "0.8"
-
+ 
 +bismuth = "1.0-SNAPSHOT"
 +
  [libraries]
-
+ 
  # Important Dependencies
 @@ -96,6 +98,8 @@ jmh-annotationprocessor = { group = "org.openjdk.jmh", name = "jmh-generator-ann
  # JCStress
  jcstress-core = { group = "org.openjdk.jcstress", name = "jcstress-core", version.ref = "jcstress" }
-
+ 
 +bismuth = { group = "net.defade.bismuth", name = "client", version.ref = "bismuth" }
 +
  [bundles]
-
+ 
  kotlin = ["kotlin-stdlib-jdk8", "kotlin-reflect"]
 diff --git a/settings.gradle.kts b/settings.gradle.kts
 index 491db1ddd441c3f6f50edccdf4982ecd4a328599..116279d1ddcc70106fa45d03e66246d9794a9cd4 100644
@@ -53,7 +53,7 @@ index 491db1ddd441c3f6f50edccdf4982ecd4a328599..116279d1ddcc70106fa45d03e66246d9
 +        }
      }
  }
-
+ 
 diff --git a/src/main/java/net/defade/yokura/YokuraPacketListener.java b/src/main/java/net/defade/yokura/YokuraPacketListener.java
 new file mode 100644
 index 0000000000000000000000000000000000000000..d8cab98d6c64309d8db6f6c2f45cf5e4e2b44653
@@ -107,7 +107,7 @@ index 993a9123dba9442173133700b091b8ebbe1b98e4..bff2c0698041abe73265da98d6013fe1
 +++ b/src/main/java/net/minestom/server/MinecraftServer.java
 @@ -1,5 +1,6 @@
  package net.minestom.server;
-
+ 
 +import net.defade.yokura.YokuraPacketListener;
  import net.minestom.server.advancements.AdvancementManager;
  import net.minestom.server.adventure.bossbar.BossBarManager;
@@ -115,7 +115,7 @@ index 993a9123dba9442173133700b091b8ebbe1b98e4..bff2c0698041abe73265da98d6013fe1
 @@ -311,6 +312,10 @@ public final class MinecraftServer {
          return serverProcess.server();
      }
-
+ 
 +    public static YokuraPacketListener getBismuth() {
 +        return serverProcess.bismuth();
 +    }
@@ -129,7 +129,7 @@ index 89ec44a64d04b59006fcbea7a5616c0ccbaf0030..cdf6ef96681f3cd3680902463bb5ac89
 +++ b/src/main/java/net/minestom/server/ServerProcess.java
 @@ -1,5 +1,6 @@
  package net.minestom.server;
-
+ 
 +import net.defade.yokura.YokuraPacketListener;
  import net.minestom.server.advancements.AdvancementManager;
  import net.minestom.server.adventure.bossbar.BossBarManager;
@@ -137,14 +137,14 @@ index 89ec44a64d04b59006fcbea7a5616c0ccbaf0030..cdf6ef96681f3cd3680902463bb5ac89
 @@ -138,6 +139,11 @@ public interface ServerProcess extends Snapshotable {
       */
      @NotNull Ticker ticker();
-
+ 
 +    /**
 +     * Handles bismuth's packets.
 +     */
 +    @NotNull YokuraPacketListener bismuth();
 +
      void start(@NotNull SocketAddress socketAddress);
-
+ 
      void stop();
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
 index 91379c82f0bec6c2586c91157d41776903788bb8..1c03da5b81d7a165b9af6610e4a92acd88087a0b 100644
@@ -152,7 +152,7 @@ index 91379c82f0bec6c2586c91157d41776903788bb8..1c03da5b81d7a165b9af6610e4a92acd
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
 @@ -1,6 +1,9 @@
  package net.minestom.server;
-
+ 
  import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 +import net.defade.bismuth.client.BismuthClient;
 +import net.defade.bismuth.core.servers.ServerStatus;
@@ -173,29 +173,29 @@ index 91379c82f0bec6c2586c91157d41776903788bb8..1c03da5b81d7a165b9af6610e4a92acd
 +import java.util.concurrent.ExecutionException;
  import java.util.concurrent.atomic.AtomicBoolean;
  import java.util.concurrent.atomic.AtomicReference;
-
+ 
 @@ -69,6 +73,8 @@ final class ServerProcessImpl implements ServerProcess {
      private final ThreadDispatcher<Chunk> dispatcher;
      private final Ticker ticker;
-
+ 
 +    private final YokuraPacketListener bismuth;
 +
      private final AtomicBoolean started = new AtomicBoolean();
      private final AtomicBoolean stopped = new AtomicBoolean();
-
+ 
 @@ -95,6 +101,8 @@ final class ServerProcessImpl implements ServerProcess {
-
+ 
          this.dispatcher = ThreadDispatcher.singleThread();
          this.ticker = new TickerImpl();
 +
 +        this.bismuth = new YokuraPacketListener("");
      }
-
+ 
      @Override
 @@ -202,12 +210,26 @@ final class ServerProcessImpl implements ServerProcess {
          return ticker;
      }
-
+ 
 +    @Override
 +    public @NotNull YokuraPacketListener bismuth() {
 +        return bismuth;
@@ -206,7 +206,7 @@ index 91379c82f0bec6c2586c91157d41776903788bb8..1c03da5b81d7a165b9af6610e4a92acd
          if (!started.compareAndSet(false, true)) {
              throw new IllegalStateException("Server already started");
          }
-
+ 
 +        BismuthClient bismuthClient = new BismuthClient("localhost", 9600, new byte[0]);
 +        CompletableFuture<Void> connectFuture = bismuthClient.connect(bismuth);
 +        try {
@@ -218,4 +218,4 @@ index 91379c82f0bec6c2586c91157d41776903788bb8..1c03da5b81d7a165b9af6610e4a92acd
 +
          extension.start();
          extension.gotoPreInit();
-
+ 
