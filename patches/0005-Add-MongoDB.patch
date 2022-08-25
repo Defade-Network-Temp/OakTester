@@ -1,0 +1,262 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hygon <hygon806@gmail.com>
+Date: Wed, 24 Aug 2022 20:53:17 +0200
+Subject: [PATCH] Add MongoDB
+
+
+diff --git a/build.gradle.kts b/build.gradle.kts
+index dfd40fc7e25948abb66b09ae27df4c941b4284e6..84119db965b36a2524bfc522ab5109808d21f925 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -91,6 +91,7 @@ dependencies {
+     implementation(libs.minestomData)
+ 
+     api(libs.bismuth)
++    api(libs.mongodb)
+ 
+     // NBT parsing/manipulation/saving
+     api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index a81d8a7507e204b9b265fc1df3c9f1777d8d6b60..e8462bcc65081f2d52f18713b40520a495b4149c 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -40,6 +40,7 @@ jmh = "1.35"
+ jcstress = "0.8"
+ 
+ bismuth = "1.0-SNAPSHOT"
++mongodb = "3.12.11"
+ 
+ [libraries]
+ 
+@@ -99,6 +100,7 @@ jmh-annotationprocessor = { group = "org.openjdk.jmh", name = "jmh-generator-ann
+ jcstress-core = { group = "org.openjdk.jcstress", name = "jcstress-core", version.ref = "jcstress" }
+ 
+ bismuth = { group = "net.defade.bismuth", name = "client", version.ref = "bismuth" }
++mongodb = { group = "org.mongodb", name = "mongo-java-driver", version.ref = "mongodb" }
+ 
+ [bundles]
+ 
+diff --git a/src/main/java/net/defade/yokura/utils/MongoUtils.java b/src/main/java/net/defade/yokura/utils/MongoUtils.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..5cd43615a51802acfeb6e6d5cf1ed7e528617323
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/utils/MongoUtils.java
+@@ -0,0 +1,98 @@
++package net.defade.yokura.utils;
++
++import com.mongodb.BasicDBObject;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++import java.util.Optional;
++import java.util.concurrent.Executor;
++import java.util.concurrent.Executors;
++import net.minestom.server.MinecraftServer;
++import org.bson.BsonDocument;
++import org.bson.BsonString;
++import org.bson.Document;
++
++public class MongoUtils {
++    private static final Executor executor = Executors.newFixedThreadPool(2);
++
++    public static Optional<String> getString(String collection, String id, String key) {
++        Document document = MinecraftServer.getMongoDatabase().getCollection(collection)
++                .find(new BsonDocument("_id", new BsonString(id))).limit(1).first();
++
++        return document == null ? Optional.empty() : Optional.ofNullable(document.getString(key));
++    }
++
++    public static Optional<Long> getLong(String collection, String id, String key) {
++        Document document = MinecraftServer.getMongoDatabase().getCollection(collection)
++                .find(new BsonDocument("_id", new BsonString(id))).limit(1).first();
++
++        return document == null ? Optional.empty() : Optional.ofNullable(document.getLong(key));
++    }
++
++    public static Optional<Integer> getInt(String collection, String id, String key) {
++        Document document = MinecraftServer.getMongoDatabase().getCollection(collection)
++                .find(new BsonDocument("_id", new BsonString(id))).limit(1).first();
++
++        return document == null ? Optional.empty() : Optional.ofNullable(document.getInteger(key));
++    }
++
++    public static Optional<Double> getDouble(String collection, String id, String key) {
++        Document document = MinecraftServer.getMongoDatabase().getCollection(collection)
++                .find(new BsonDocument("_id", new BsonString(id))).limit(1).first();
++
++        return document == null ? Optional.empty() : Optional.ofNullable(document.getDouble(key));
++    }
++
++    public static Optional<Boolean> getBoolean(String collection, String id, String key) {
++        Document document = MinecraftServer.getMongoDatabase().getCollection(collection)
++                .find(new BsonDocument("_id", new BsonString(id))).limit(1).first();
++        return document == null ? Optional.empty() : Optional.ofNullable(document.getBoolean(key));
++    }
++
++    public static Optional<Document> getDocumentFromId(String collection, String id) {
++        return Optional.ofNullable(MinecraftServer.getMongoDatabase().getCollection(collection)
++                .find(new BsonDocument("_id", new BsonString(id))).limit(1).first());
++    }
++
++    public static boolean documentExists(String collection, String id) {
++        return MinecraftServer.getMongoDatabase().getCollection(collection).find(new Document("_id", id)).first() != null;
++    }
++
++    public static void updateValue(String collection, String id, String key, Object value) {
++        BasicDBObject query = new BasicDBObject("$set", new BasicDBObject(key, value));
++        MinecraftServer.getMongoDatabase().getCollection(collection).updateOne(new BsonDocument("_id", new BsonString(id)), query);
++    }
++
++    public static void addToList(String collection, String id, String key, Object value) {
++        BasicDBObject query = new BasicDBObject("$addToSet", new BasicDBObject(key, value));
++        MinecraftServer.getMongoDatabase().getCollection(collection).updateOne(new BsonDocument("_id", new BsonString(id)), query);
++    }
++
++    public static void removeFromList(String collection, String id, String key, Object value) {
++        BasicDBObject match = new BasicDBObject("_id", id);
++        BasicDBObject query = new BasicDBObject(key, value);
++        MinecraftServer.getMongoDatabase().getCollection(collection).updateOne(match, new BasicDBObject("$pull", query));
++    }
++
++    public static <T> List<T> getList(String collection, String id, String key, Class<T> clazz) {
++        Document document = MinecraftServer.getMongoDatabase().getCollection(collection).find(new Document("_id", id)).first();
++
++        return document == null ? new ArrayList<>() : document.getList(key, clazz);
++    }
++
++    public static void insertDocument(String collection, Document document) {
++        MinecraftServer.getMongoDatabase().getCollection(collection).insertOne(document);
++    }
++
++    public static void insertDocuments(String collection, Document... documents) {
++        MinecraftServer.getMongoDatabase().getCollection(collection).insertMany(Arrays.stream(documents).toList());
++    }
++
++    public static void deleteDocument(String collection, String id) {
++        MinecraftServer.getMongoDatabase().getCollection(collection).deleteOne(new BsonDocument("_id", new BsonString(id)));
++    }
++
++    public static void executeAsync(Runnable runnable) {
++        executor.execute(runnable);
++    }
++}
+\ No newline at end of file
+diff --git a/src/main/java/net/minestom/server/MinecraftServer.java b/src/main/java/net/minestom/server/MinecraftServer.java
+index c4349e700e81172c9ae8e85fe9dc8b87b6dfe75a..f2902a1e34992fe92372b68c71e32fef70aee939 100644
+--- a/src/main/java/net/minestom/server/MinecraftServer.java
++++ b/src/main/java/net/minestom/server/MinecraftServer.java
+@@ -1,5 +1,7 @@
+ package net.minestom.server;
+ 
++import com.mongodb.MongoClient;
++import com.mongodb.client.MongoDatabase;
+ import net.defade.yokura.YokuraPacketListener;
+ import net.defade.yokura.servers.ServerAPI;
+ import net.minestom.server.advancements.AdvancementManager;
+@@ -321,6 +323,14 @@ public final class MinecraftServer {
+         return serverProcess.serverApi();
+     }
+ 
++    public static MongoClient getMongoClient() {
++        return serverProcess.mongoclient();
++    }
++
++    public static MongoDatabase getMongoDatabase() {
++        return serverProcess.mongoDatabase();
++    }
++
+     /**
+      * Starts the server.
+      * <p>
+diff --git a/src/main/java/net/minestom/server/ServerProcess.java b/src/main/java/net/minestom/server/ServerProcess.java
+index 4c1528b7ce0ee44a8de5675179b56c4da64f6e68..2fe8778922d304a54db5ea7faee5bba1a2634f5d 100644
+--- a/src/main/java/net/minestom/server/ServerProcess.java
++++ b/src/main/java/net/minestom/server/ServerProcess.java
+@@ -1,5 +1,7 @@
+ package net.minestom.server;
+ 
++import com.mongodb.MongoClient;
++import com.mongodb.client.MongoDatabase;
+ import net.defade.yokura.servers.ServerAPI;
+ import net.defade.yokura.YokuraPacketListener;
+ import net.minestom.server.advancements.AdvancementManager;
+@@ -150,6 +152,17 @@ public interface ServerProcess extends Snapshotable {
+      */
+     @NotNull ServerAPI serverApi();
+ 
++    /**
++     * Handles the mongo client.
++     */
++    @NotNull MongoClient mongoclient();
++
++    /**
++     * The database for the network.
++     */
++    @NotNull MongoDatabase mongoDatabase();
++
++
+     void start(@NotNull SocketAddress socketAddress);
+ 
+     void stop();
+diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
+index f787808fa965f7abbcf1ee49613e2296c7047f30..9845310491680aa9d9e9ef2801225bee8af8f5fa 100644
+--- a/src/main/java/net/minestom/server/ServerProcessImpl.java
++++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
+@@ -1,5 +1,10 @@
+ package net.minestom.server;
+ 
++import com.mongodb.MongoClient;
++import com.mongodb.MongoClientOptions;
++import com.mongodb.MongoCredential;
++import com.mongodb.ServerAddress;
++import com.mongodb.client.MongoDatabase;
+ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+ import net.defade.bismuth.client.BismuthClient;
+ import net.defade.yokura.YokuraPacketListener;
+@@ -77,6 +82,8 @@ final class ServerProcessImpl implements ServerProcess {
+ 
+     private final ServerAPIImpl serverAPI;
+     private final YokuraPacketListener bismuth;
++    private MongoClient mongoClient;
++    private MongoDatabase mongoDatabase;
+ 
+     private final AtomicBoolean started = new AtomicBoolean();
+     private final AtomicBoolean stopped = new AtomicBoolean();
+@@ -224,6 +231,16 @@ final class ServerProcessImpl implements ServerProcess {
+         return serverAPI;
+     }
+ 
++    @Override
++    public @NotNull MongoClient mongoclient() {
++        return mongoClient;
++    }
++
++    @Override
++    public @NotNull MongoDatabase mongoDatabase() {
++        return mongoDatabase;
++    }
++
+     @Override
+     public void start(@NotNull SocketAddress socketAddress) {
+         if (!started.compareAndSet(false, true)) {
+@@ -239,6 +256,20 @@ final class ServerProcessImpl implements ServerProcess {
+             throw new RuntimeException(e);
+         }
+ 
++        MongoCredential mongoCredential = MongoCredential.createCredential(bismuth.getNetworkInfos().getMongoUsername(),
++                bismuth.getNetworkInfos().getMongoDatabase(), bismuth.getNetworkInfos().getMongoPassword().toCharArray());
++        mongoClient = new MongoClient(new ServerAddress(bismuth.getNetworkInfos().getMongoHost(), bismuth.getNetworkInfos().getMongoPort()), mongoCredential, MongoClientOptions.builder().build());
++        mongoDatabase = mongoClient.getDatabase(bismuth.getNetworkInfos().getMongoDatabase());
++
++        try {
++            mongoClient.getDatabase("admin").runCommand(new org.bson.Document("ping", 1));
++            LOGGER.info("Connected to the MongoDB server.");
++        } catch (Exception e) {
++            LOGGER.error("Couldn't connect to the MongoDB server.");
++            exception.handleException(e);
++            throw new RuntimeException(e);
++        }
++
+         extension.start();
+         extension.gotoPreInit();
+ 
