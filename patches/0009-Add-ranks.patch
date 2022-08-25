@@ -1,0 +1,104 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hygon <hygon806@gmail.com>
+Date: Fri, 26 Aug 2022 01:44:22 +0200
+Subject: [PATCH] Add ranks
+
+
+diff --git a/src/main/java/net/defade/yokura/entity/player/Ranks.java b/src/main/java/net/defade/yokura/entity/player/Ranks.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0b1c9a5858e058bee26620720edaddaab6371f5
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/entity/player/Ranks.java
+@@ -0,0 +1,35 @@
++package net.defade.yokura.entity.player;
++
++import net.kyori.adventure.text.Component;
++import net.kyori.adventure.text.format.NamedTextColor;
++import net.kyori.adventure.text.format.TextColor;
++import net.minestom.server.permission.Permission;
++import java.util.List;
++
++public enum Ranks {
++    ADMIN(0, Component.text("Admin").color(TextColor.color(238, 46, 53)), List.of()),
++    BUILDER(10, Component.text("Builder").color(TextColor.color(52, 150, 223)), List.of()),
++    PLAYER(100, Component.text("Joueur").color(NamedTextColor.GRAY), List.of());
++
++    private final int power;
++    private final Component name;
++    private final List<Permission> permissions;
++
++    Ranks(int power, Component name, List<Permission> permissions) {
++        this.power = power;
++        this.name = name;
++        this.permissions = permissions;
++    }
++
++    public int getPower() {
++        return power;
++    }
++
++    public Component getName() {
++        return name;
++    }
++
++    public List<Permission> getPermissions() {
++        return permissions;
++    }
++}
+diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
+index 3450f178294b173a81364c9e36d061ea15bf2709..516951ccaa47411edaaaf042ed80b6df26933aa3 100644
+--- a/src/main/java/net/minestom/server/entity/Player.java
++++ b/src/main/java/net/minestom/server/entity/Player.java
+@@ -1,6 +1,7 @@
+ package net.minestom.server.entity;
+ 
+ import net.defade.bismuth.core.servers.Server;
++import net.defade.yokura.entity.player.Ranks;
+ import net.defade.yokura.event.player.NetworkLevelChangeEvent;
+ import net.defade.yokura.utils.MongoUtils;
+ import net.kyori.adventure.audience.MessageType;
+@@ -214,6 +215,7 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+     private double crystals;
+     private int networkLevel;
+     private int networkXp;
++    private Ranks rank;
+ 
+     public Player(@NotNull UUID uuid, @NotNull String username, @NotNull PlayerConnection playerConnection) {
+         super(EntityType.PLAYER, uuid);
+@@ -256,7 +258,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+                     .append("crystals", MinecraftServer.getBismuth().getNetworkInfos().getDefaultCrystals())
+                     .append("level", 0)
+                     .append("xp", 0)
+-                    .append("permissions", new ArrayList<>());
++                    .append("permissions", new ArrayList<>())
++                    .append("rank", Ranks.PLAYER.toString());
+ 
+             MongoUtils.insertDocument("players", playerData);
+         }
+@@ -265,6 +268,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+         crystals = playerData.getDouble("crystals");
+         networkLevel = playerData.getInteger("level");
+         networkXp = playerData.getInteger("xp");
++        rank = Ranks.valueOf(playerData.getString("rank"));
++        this.rank.getPermissions().forEach(super::addPermission);
+ 
+         for(Document permissions : playerData.getList("permissions", Document.class)) {
+             NBTCompound nbt = null;
+@@ -385,6 +390,17 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+         });
+     }
+ 
++    public Ranks getRank() {
++        return rank;
++    }
++
++    public void setRank(Ranks rank) {
++        this.rank.getPermissions().forEach(super::removePermission);
++        this.rank = rank;
++        MongoUtils.executeAsync(() -> MongoUtils.updateValue("players", getUuid().toString(), "rank", rank.toString()));
++        this.rank.getPermissions().forEach(super::addPermission);
++    }
++
+     /**
+      * Used when the player is created.
+      * Init the player and spawn him.
