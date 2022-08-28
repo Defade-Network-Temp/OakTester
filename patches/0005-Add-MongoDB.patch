@@ -142,7 +142,7 @@ index 0000000000000000000000000000000000000000..5cd43615a51802acfeb6e6d5cf1ed7e5
 +}
 \ No newline at end of file
 diff --git a/src/main/java/net/minestom/server/MinecraftServer.java b/src/main/java/net/minestom/server/MinecraftServer.java
-index c4349e700e81172c9ae8e85fe9dc8b87b6dfe75a..f2902a1e34992fe92372b68c71e32fef70aee939 100644
+index c4349e700e81172c9ae8e85fe9dc8b87b6dfe75a..d998c271c47f72c39bac5357bc8962bab5028f38 100644
 --- a/src/main/java/net/minestom/server/MinecraftServer.java
 +++ b/src/main/java/net/minestom/server/MinecraftServer.java
 @@ -1,5 +1,7 @@
@@ -158,7 +158,7 @@ index c4349e700e81172c9ae8e85fe9dc8b87b6dfe75a..f2902a1e34992fe92372b68c71e32fef
      }
  
 +    public static MongoClient getMongoClient() {
-+        return serverProcess.mongoclient();
++        return serverProcess.mongoClient();
 +    }
 +
 +    public static MongoDatabase getMongoDatabase() {
@@ -169,7 +169,7 @@ index c4349e700e81172c9ae8e85fe9dc8b87b6dfe75a..f2902a1e34992fe92372b68c71e32fef
       * Starts the server.
       * <p>
 diff --git a/src/main/java/net/minestom/server/ServerProcess.java b/src/main/java/net/minestom/server/ServerProcess.java
-index 4c1528b7ce0ee44a8de5675179b56c4da64f6e68..2fe8778922d304a54db5ea7faee5bba1a2634f5d 100644
+index 4c1528b7ce0ee44a8de5675179b56c4da64f6e68..dccc482f1003260a54a2798a06417a97deadcc65 100644
 --- a/src/main/java/net/minestom/server/ServerProcess.java
 +++ b/src/main/java/net/minestom/server/ServerProcess.java
 @@ -1,5 +1,7 @@
@@ -187,7 +187,7 @@ index 4c1528b7ce0ee44a8de5675179b56c4da64f6e68..2fe8778922d304a54db5ea7faee5bba1
 +    /**
 +     * Handles the mongo client.
 +     */
-+    @NotNull MongoClient mongoclient();
++    @NotNull MongoClient mongoClient();
 +
 +    /**
 +     * The database for the network.
@@ -199,7 +199,7 @@ index 4c1528b7ce0ee44a8de5675179b56c4da64f6e68..2fe8778922d304a54db5ea7faee5bba1
  
      void stop();
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
-index f787808fa965f7abbcf1ee49613e2296c7047f30..9845310491680aa9d9e9ef2801225bee8af8f5fa 100644
+index 16e6eb01d6be06519c52445ad10ebee2e5361199..71c5fd71918db7285e2cb8b95824cf49a18bd1ff 100644
 --- a/src/main/java/net/minestom/server/ServerProcessImpl.java
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
 @@ -1,5 +1,10 @@
@@ -212,22 +212,22 @@ index f787808fa965f7abbcf1ee49613e2296c7047f30..9845310491680aa9d9e9ef2801225bee
 +import com.mongodb.client.MongoDatabase;
  import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
  import net.defade.bismuth.client.BismuthClient;
- import net.defade.yokura.YokuraPacketListener;
-@@ -77,6 +82,8 @@ final class ServerProcessImpl implements ServerProcess {
+ import net.defade.bismuth.core.servers.GameType;
+@@ -81,6 +86,8 @@ final class ServerProcessImpl implements ServerProcess {
  
      private final ServerAPIImpl serverAPI;
-     private final YokuraPacketListener bismuth;
+     private YokuraPacketListener bismuth;
 +    private MongoClient mongoClient;
 +    private MongoDatabase mongoDatabase;
  
      private final AtomicBoolean started = new AtomicBoolean();
      private final AtomicBoolean stopped = new AtomicBoolean();
-@@ -224,6 +231,16 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -227,6 +234,16 @@ final class ServerProcessImpl implements ServerProcess {
          return serverAPI;
      }
  
 +    @Override
-+    public @NotNull MongoClient mongoclient() {
++    public @NotNull MongoClient mongoClient() {
 +        return mongoClient;
 +    }
 +
@@ -239,7 +239,7 @@ index f787808fa965f7abbcf1ee49613e2296c7047f30..9845310491680aa9d9e9ef2801225bee
      @Override
      public void start(@NotNull SocketAddress socketAddress) {
          if (!started.compareAndSet(false, true)) {
-@@ -239,6 +256,20 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -257,6 +274,20 @@ final class ServerProcessImpl implements ServerProcess {
              throw new RuntimeException(e);
          }
  
@@ -257,6 +257,6 @@ index f787808fa965f7abbcf1ee49613e2296c7047f30..9845310491680aa9d9e9ef2801225bee
 +            throw new RuntimeException(e);
 +        }
 +
-         extension.start();
          extension.gotoPreInit();
  
+         LOGGER.info("Starting Minestom server.");

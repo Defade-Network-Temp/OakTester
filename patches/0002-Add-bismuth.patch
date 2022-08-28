@@ -56,19 +56,24 @@ index 491db1ddd441c3f6f50edccdf4982ecd4a328599..116279d1ddcc70106fa45d03e66246d9
  
 diff --git a/src/main/java/net/defade/yokura/YokuraPacketListener.java b/src/main/java/net/defade/yokura/YokuraPacketListener.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..d8cab98d6c64309d8db6f6c2f45cf5e4e2b44653
+index 0000000000000000000000000000000000000000..dd74b16a66dbcf46e40e23888e36b546bcc29c2e
 --- /dev/null
 +++ b/src/main/java/net/defade/yokura/YokuraPacketListener.java
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,46 @@
 +package net.defade.yokura;
 +
 +import net.defade.bismuth.core.listeners.client.YokuraClientPacketListener;
-+import net.defade.bismuth.core.protocol.packets.yokura.client.*;
++import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundCreatedServerPacket;
++import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundDeletedServerPacket;
++import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundForwardingKeyPacket;
++import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundServersListPacket;
++import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundStopServerPacket;
++import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundUpdateServerStatusPacket;
 +import net.defade.bismuth.core.servers.Server;
 +
 +public class YokuraPacketListener extends YokuraClientPacketListener {
-+    public YokuraPacketListener(String serverId) {
-+        super(serverId);
++    public YokuraPacketListener(Server server, int port) {
++        super(server, port);
 +    }
 +
 +    @Override
@@ -147,20 +152,21 @@ index 89ec44a64d04b59006fcbea7a5616c0ccbaf0030..cdf6ef96681f3cd3680902463bb5ac89
  
      void stop();
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
-index 91379c82f0bec6c2586c91157d41776903788bb8..1c03da5b81d7a165b9af6610e4a92acd88087a0b 100644
+index 91379c82f0bec6c2586c91157d41776903788bb8..036d3a2d09bf363e127c1abd281277f5462a9b4b 100644
 --- a/src/main/java/net/minestom/server/ServerProcessImpl.java
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
-@@ -1,6 +1,9 @@
+@@ -1,6 +1,10 @@
  package net.minestom.server;
  
  import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 +import net.defade.bismuth.client.BismuthClient;
++import net.defade.bismuth.core.servers.GameType;
 +import net.defade.bismuth.core.servers.ServerStatus;
 +import net.defade.yokura.YokuraPacketListener;
  import net.minestom.server.advancements.AdvancementManager;
  import net.minestom.server.adventure.bossbar.BossBarManager;
  import net.minestom.server.command.CommandManager;
-@@ -35,11 +38,12 @@ import net.minestom.server.world.biomes.BiomeManager;
+@@ -35,11 +39,12 @@ import net.minestom.server.world.biomes.BiomeManager;
  import org.jetbrains.annotations.NotNull;
  import org.slf4j.Logger;
  import org.slf4j.LoggerFactory;
@@ -174,7 +180,7 @@ index 91379c82f0bec6c2586c91157d41776903788bb8..1c03da5b81d7a165b9af6610e4a92acd
  import java.util.concurrent.atomic.AtomicBoolean;
  import java.util.concurrent.atomic.AtomicReference;
  
-@@ -69,6 +73,8 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -69,6 +74,8 @@ final class ServerProcessImpl implements ServerProcess {
      private final ThreadDispatcher<Chunk> dispatcher;
      private final Ticker ticker;
  
@@ -183,16 +189,16 @@ index 91379c82f0bec6c2586c91157d41776903788bb8..1c03da5b81d7a165b9af6610e4a92acd
      private final AtomicBoolean started = new AtomicBoolean();
      private final AtomicBoolean stopped = new AtomicBoolean();
  
-@@ -95,6 +101,8 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -95,6 +102,8 @@ final class ServerProcessImpl implements ServerProcess {
  
          this.dispatcher = ThreadDispatcher.singleThread();
          this.ticker = new TickerImpl();
 +
-+        this.bismuth = new YokuraPacketListener("");
++        this.bismuth = new YokuraPacketListener(new net.defade.bismuth.core.servers.Server("", new GameType("", ""), ServerStatus.ACCEPTING_PLAYERS), -1);
      }
  
      @Override
-@@ -202,12 +210,26 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -202,12 +211,26 @@ final class ServerProcessImpl implements ServerProcess {
          return ticker;
      }
  
