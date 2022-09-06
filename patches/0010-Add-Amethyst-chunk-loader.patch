@@ -1,0 +1,884 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hygon <hygon806@gmail.com>
+Date: Sat, 3 Sep 2022 17:18:32 +0200
+Subject: [PATCH] Add Amethyst chunk loader
+
+
+diff --git a/src/main/java/net/defade/yokura/amethyst/AmethystChunk.java b/src/main/java/net/defade/yokura/amethyst/AmethystChunk.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..f98d707aa1c4bfb4fe7b5297943c46e3d9c8e57c
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/amethyst/AmethystChunk.java
+@@ -0,0 +1,16 @@
++package net.defade.yokura.amethyst;
++
++import net.minestom.server.instance.DynamicChunk;
++import net.minestom.server.instance.Instance;
++import org.jetbrains.annotations.NotNull;
++
++public class AmethystChunk extends DynamicChunk {
++    public AmethystChunk(@NotNull Instance instance, int chunkX, int chunkZ) {
++        super(instance, chunkX, chunkZ);
++    }
++
++    @Override
++    public void invalidate() {
++        super.invalidate();
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/amethyst/AmethystChunkLoader.java b/src/main/java/net/defade/yokura/amethyst/AmethystChunkLoader.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..ef91926ca405a3e7843bea897a8fa092f160f031
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/amethyst/AmethystChunkLoader.java
+@@ -0,0 +1,340 @@
++package net.defade.yokura.amethyst;
++
++import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
++import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
++import it.unimi.dsi.fastutil.ints.IntArrayList;
++import net.defade.yokura.world.BiomeParser;
++import net.minestom.server.MinecraftServer;
++import net.minestom.server.coordinate.Point;
++import net.minestom.server.instance.Chunk;
++import net.minestom.server.instance.IChunkLoader;
++import net.minestom.server.instance.Instance;
++import net.minestom.server.instance.Section;
++import net.minestom.server.instance.block.Block;
++import net.minestom.server.instance.palette.AdaptivePalette;
++import net.minestom.server.instance.palette.FlexiblePalette;
++import net.minestom.server.utils.chunk.ChunkUtils;
++import net.minestom.server.world.biomes.Biome;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++import org.jglrxavpok.hephaistos.nbt.CompressedProcesser;
++import org.jglrxavpok.hephaistos.nbt.NBT;
++import org.jglrxavpok.hephaistos.nbt.NBTCompound;
++import org.jglrxavpok.hephaistos.nbt.NBTReader;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++import java.io.ByteArrayOutputStream;
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import java.io.OutputStream;
++import java.nio.ByteBuffer;
++import java.util.Collection;
++import java.util.HashMap;
++import java.util.Map;
++import java.util.concurrent.CompletableFuture;
++import java.util.concurrent.ConcurrentHashMap;
++
++public class AmethystChunkLoader implements IChunkLoader {
++    private static final Logger LOGGER = LoggerFactory.getLogger(AmethystChunkLoader.class);
++
++    private final AmethystSource amethystSource;
++    private String config = "";
++
++    private final Map<Integer, Integer> biomes = new HashMap<>();
++    private final Map<Long, byte[]> chunks = new ConcurrentHashMap<>();
++
++    public AmethystChunkLoader(AmethystSource amethystSource) {
++        this.amethystSource = amethystSource;
++    }
++
++    @Override
++    public void loadInstance(@NotNull Instance instance) {
++        InputStream inputStream = amethystSource.getSource();
++        if (inputStream == null) {
++            return;
++        }
++
++        try {
++            DataInputStream dataInputStream = new DataInputStream(inputStream);
++            config = dataInputStream.readUTF();
++
++            int biomesAmount = dataInputStream.readInt();
++            for (int i = 0; i < biomesAmount; i++) {
++                int biomeId = dataInputStream.readInt();
++                byte[] biome = new byte[dataInputStream.readInt()];
++                dataInputStream.read(biome);
++
++                Biome decodedBiome = BiomeParser.decode(biome);
++                if (MinecraftServer.getBiomeManager().getByName(decodedBiome.name()) == null) {
++                    MinecraftServer.getBiomeManager().addBiome(decodedBiome);
++                }
++
++                biomes.put(biomeId, MinecraftServer.getBiomeManager().getByName(decodedBiome.name()).id());
++            }
++
++            int chunksAmount = dataInputStream.readInt();
++            for (int i = 0; i < chunksAmount; i++) {
++                long chunkIndex = dataInputStream.readLong();
++
++                byte[] chunkData = new byte[dataInputStream.readInt()];
++                dataInputStream.read(chunkData);
++
++                chunks.put(chunkIndex, chunkData);
++            }
++
++            dataInputStream.close();
++        } catch (IOException exception) {
++            MinecraftServer.getExceptionManager().handleException(exception);
++        }
++    }
++
++    @Override
++    public @NotNull CompletableFuture<Void> saveInstance(@NotNull Instance instance) {
++        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
++
++        OutputStream outputStream = amethystSource.getOutputStream(completableFuture);
++        DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
++        Collection<Biome> biomes = MinecraftServer.getBiomeManager().unmodifiableCollection();
++
++        try {
++            dataOutputStream.writeUTF(config);
++            dataOutputStream.writeInt(biomes.size());
++
++            for (Biome biome : biomes) {
++                dataOutputStream.writeInt(biome.id());
++                byte[] encodedBiome = BiomeParser.encode(biome);
++                dataOutputStream.writeInt(encodedBiome.length);
++                dataOutputStream.write(encodedBiome);
++            }
++
++            dataOutputStream.writeInt(chunks.size());
++            for (long chunkPos : new HashMap<>(chunks).keySet()) {
++                dataOutputStream.writeLong(chunkPos);
++                byte[] chunkData = chunks.get(chunkPos);
++                dataOutputStream.writeInt(chunkData.length);
++                dataOutputStream.write(chunkData);
++            }
++
++            outputStream.flush();
++            outputStream.close();
++        } catch (IOException exception) {
++            completableFuture.completeExceptionally(exception);
++            return completableFuture;
++        }
++
++        completableFuture.complete(null);
++        return completableFuture;
++    }
++
++    @Override
++    public @NotNull CompletableFuture<@Nullable Chunk> loadChunk(@NotNull Instance instance, int chunkX, int chunkZ) {
++        CompletableFuture<Chunk> completableFuture = new CompletableFuture<>();
++
++        long chunkIndex = ChunkUtils.getChunkIndex(chunkX, chunkZ);
++        if (!chunks.containsKey(chunkIndex)) {
++            completableFuture.complete(null);
++            return completableFuture;
++        }
++
++        try {
++            byte[] chunkData = chunks.remove(chunkIndex);
++
++            ByteBuffer byteBuffer = ByteBuffer.wrap(chunkData);
++            AmethystChunk amethystChunk = new AmethystChunk(instance, chunkX, chunkZ);
++
++            byte sectionsAmount = byteBuffer.get();
++            for (byte sectionIndex = 0; sectionIndex < sectionsAmount; sectionIndex++) {
++                Section section = amethystChunk.getSections().get(sectionIndex);
++                byte paletteType = byteBuffer.get();
++
++                if (paletteType == 0) {
++                    section.blockPalette().fill(byteBuffer.getShort());
++                } else {
++                    byte blockBitsPerEntry = byteBuffer.get();
++
++                    short blockMapSize = byteBuffer.getShort();
++                    IntArrayList blockPaletteToValueList = new IntArrayList(blockMapSize);
++                    for (int i = 0; i < blockMapSize; i++) {
++                        blockPaletteToValueList.add(byteBuffer.getShort());
++                    }
++
++                    short blockCount = byteBuffer.getShort();
++
++                    long[] blockValues = new long[byteBuffer.getShort()];
++                    byteBuffer.asLongBuffer().get(blockValues);
++                    byteBuffer.position(byteBuffer.position() + (blockValues.length * 8));
++
++                    section.blockPalette().createFlexiblePalette(blockBitsPerEntry, blockPaletteToValueList, blockCount, blockValues);
++                }
++
++                for (int y = 0; y < 4; y++) {
++                    for (int z = 0; z < 4; z++) {
++                        for (int x = 0; x < 4; x++) {
++                            section.biomePalette().set(x, y, z, biomes.get((int) byteBuffer.get()));
++                        }
++                    }
++                }
++            }
++
++            int blockEntitiesAmount = byteBuffer.getInt();
++            for (int i = 0; i < blockEntitiesAmount; i++) {
++                int blockPosIndex = byteBuffer.getInt();
++                short blockStateId = byteBuffer.getShort();
++                byte blockDataMask = byteBuffer.get();
++
++                Block block = Block.fromStateId(blockStateId);
++                if (block == null) {
++                    LOGGER.error("Couldn't find a block with a state id of " + blockStateId + ".");
++                    continue;
++                }
++
++                if ((blockDataMask & 1) == 1) {
++                    byte[] encodedNbt = new byte[byteBuffer.getInt()];
++                    byteBuffer.get(encodedNbt);
++
++                    NBTReader nbtReader = new NBTReader(encodedNbt, CompressedProcesser.NONE);
++                    NBT nbt = nbtReader.read();
++                    nbtReader.close();
++                    if (!(nbt instanceof NBTCompound)) {
++                        Point blockPos = ChunkUtils.getBlockPosition(blockPosIndex, chunkX, chunkZ);
++                        LOGGER.warn("Block at position [x: " + blockPos.blockX() + " y: " + blockPos.blockY() + " z: " + blockPos.blockZ() + "] NBT is not an instance of NBTCompound.");
++                        continue;
++                    }
++
++                    block = block.withNbt((NBTCompound) nbt);
++                }
++
++                if ((blockDataMask & (1 << 1)) == 2) {
++                    block = block.withHandler(MinecraftServer.getBlockManager().getHandlerOrDummy(block.namespace().asString()));
++                }
++
++                amethystChunk.getBlockEntities().put(blockPosIndex, block);
++            }
++
++            amethystChunk.invalidate();
++
++            completableFuture.complete(amethystChunk);
++        } catch (Throwable exception) {
++            completableFuture.completeExceptionally(exception);
++            return completableFuture;
++        }
++
++        return completableFuture;
++    }
++
++    @Override
++    public @NotNull CompletableFuture<Void> saveChunk(@NotNull Chunk chunk) {
++        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
++        for (Biome biome : MinecraftServer.getBiomeManager().unmodifiableCollection()) {
++            biomes.putIfAbsent(biome.id(), biome.id());
++        }
++
++        try {
++            int arraySize = Byte.BYTES; // Pre-calculating the array size allows us to define the original byte array size, avoiding useless and costly resizes.
++            for (int i = 0; i < chunk.getSections().size(); i++) {
++                AdaptivePalette blockPalette = chunk.getSections().get(i).blockPalette();
++
++                arraySize = arraySize + Byte.BYTES;
++                if (blockPalette.isFilledPalette()) {
++                    arraySize = arraySize + Short.BYTES;
++                } else {
++                    FlexiblePalette flexiblePalette = blockPalette.getAsFlexiblePalette();
++                    arraySize = arraySize + Byte.BYTES + Short.BYTES + (flexiblePalette.paletteToValueList().size() * Short.BYTES) + Short.BYTES + Short.BYTES + (flexiblePalette.values().length * Long.BYTES);
++                }
++
++                arraySize = arraySize + 64;
++            }
++
++            arraySize = arraySize + Integer.BYTES;
++
++            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(arraySize);
++            DataOutputStream dataOutputStream = new DataOutputStream(byteArrayOutputStream);
++            dataOutputStream.write((byte) chunk.getSections().size());
++
++            for (Section section : chunk.getSections()) {
++                AdaptivePalette blockPalette = section.blockPalette();
++                if (blockPalette.isFilledPalette()) {
++                    dataOutputStream.write(0);
++                    dataOutputStream.writeShort((short) blockPalette.get(0, 0, 0));
++                } else {
++                    FlexiblePalette flexiblePalette = blockPalette.getAsFlexiblePalette();
++                    dataOutputStream.write(1);
++                    dataOutputStream.write((byte) flexiblePalette.bitsPerEntry());
++
++                    IntArrayList blockPaletteToValueList = flexiblePalette.paletteToValueList();
++                    dataOutputStream.writeShort((short) blockPaletteToValueList.size());
++                    for (int value : blockPaletteToValueList) {
++                        dataOutputStream.writeShort((short) value);
++                    }
++
++                    dataOutputStream.writeShort((short) flexiblePalette.count());
++
++                    long[] blockValues = flexiblePalette.values();
++                    dataOutputStream.writeShort((short) blockValues.length);
++                    for (long blockValue : blockValues) {
++                        dataOutputStream.writeLong(blockValue);
++                    }
++                }
++
++                section.biomePalette().getAll((x, y, z, value) -> {
++                    try {
++                        dataOutputStream.write((byte) value);
++                    } catch (IOException exception) {
++                        completableFuture.completeExceptionally(exception);
++                    }
++                });
++            }
++
++            Int2ObjectOpenHashMap<Block> blockEntities = chunk.getBlockEntities();
++            dataOutputStream.writeInt(blockEntities.size());
++
++            for (Int2ObjectMap.Entry<Block> blockEntityEntry : blockEntities.int2ObjectEntrySet()) {
++                dataOutputStream.writeInt(blockEntityEntry.getIntKey());
++                dataOutputStream.writeShort(blockEntityEntry.getValue().stateId());
++
++                NBTCompound nbt = blockEntityEntry.getValue().nbt();
++
++                byte blockDataMask = 0;
++                if (nbt != null) blockDataMask = (byte) (blockDataMask | 1);
++                if (blockEntityEntry.getValue().handler() != null) blockDataMask = (byte) (blockDataMask | 2);
++
++                dataOutputStream.write(blockDataMask);
++
++                if (nbt != null) {
++                    byte[] encodedNbt = nbt.toByteArray();
++                    dataOutputStream.writeInt(encodedNbt.length);
++                    dataOutputStream.write(encodedNbt);
++                }
++            }
++
++            chunks.put(ChunkUtils.getChunkIndex(chunk), byteArrayOutputStream.toByteArray());
++
++            completableFuture.complete(null);
++        } catch (Throwable exception) {
++            completableFuture.completeExceptionally(exception);
++            return completableFuture;
++        }
++
++        return completableFuture;
++    }
++
++    @Override
++    public boolean supportsParallelSaving() {
++        return true;
++    }
++
++    @Override
++    public boolean supportsParallelLoading() {
++        return true;
++    }
++
++    public String getConfig() {
++        return config;
++    }
++
++    public void setConfig(String config) {
++        this.config = config;
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/amethyst/AmethystSource.java b/src/main/java/net/defade/yokura/amethyst/AmethystSource.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..669e9682ebbaddd2c2ac582b9d5355b7b43e11bb
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/amethyst/AmethystSource.java
+@@ -0,0 +1,11 @@
++package net.defade.yokura.amethyst;
++
++import java.io.InputStream;
++import java.io.OutputStream;
++import java.util.concurrent.CompletableFuture;
++
++public interface AmethystSource {
++    InputStream getSource();
++
++    OutputStream getOutputStream(CompletableFuture<Void> writeFuture);
++}
+\ No newline at end of file
+diff --git a/src/main/java/net/defade/yokura/world/BiomeParser.java b/src/main/java/net/defade/yokura/world/BiomeParser.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..9e1d4c7bd0c10b934a70cdeb2f6479ca879d93b5
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/world/BiomeParser.java
+@@ -0,0 +1,248 @@
++package net.defade.yokura.world;
++
++import net.minestom.server.instance.block.Block;
++import net.minestom.server.utils.NamespaceID;
++import net.minestom.server.utils.binary.BinaryReader;
++import net.minestom.server.utils.binary.BinaryWriter;
++import net.minestom.server.world.biomes.Biome;
++import net.minestom.server.world.biomes.BiomeEffects;
++import net.minestom.server.world.biomes.BiomeParticle;
++
++public class BiomeParser {
++    public static byte[] encode(Biome biome) {
++        BinaryWriter binaryWriter = new BinaryWriter();
++
++        binaryWriter.writeSizedString(biome.name().domain());
++        binaryWriter.writeSizedString(biome.name().path());
++
++        binaryWriter.writeFloat(biome.depth());
++        binaryWriter.writeFloat(biome.temperature());
++        binaryWriter.writeFloat(biome.scale());
++        binaryWriter.writeFloat(biome.downfall());
++
++        binaryWriter.writeSizedString(biome.category().toString());
++
++        writeBiomeEffects(biome.effects(), binaryWriter);
++
++        binaryWriter.writeSizedString(biome.precipitation().toString());
++        binaryWriter.writeSizedString(biome.temperatureModifier().toString());
++
++        return binaryWriter.toByteArray();
++    }
++
++    public static Biome decode(byte[] biome) {
++        BinaryReader binaryReader = new BinaryReader(biome);
++
++        NamespaceID name = NamespaceID.from(binaryReader.readSizedString(), binaryReader.readSizedString());
++
++        float depth = binaryReader.readFloat();
++        float temperature = binaryReader.readFloat();
++        float scale = binaryReader.readFloat();
++        float downfall = binaryReader.readFloat();
++
++        Biome.Category category = Biome.Category.valueOf(binaryReader.readSizedString());
++
++        BiomeEffects biomeEffects = readBiomeEffects(binaryReader);
++
++        Biome.Precipitation precipitation = Biome.Precipitation.valueOf(binaryReader.readSizedString());
++        Biome.TemperatureModifier temperatureModifier = Biome.TemperatureModifier.valueOf(binaryReader.readSizedString());
++
++        return Biome.builder()
++                .name(name)
++                .depth(depth)
++                .temperature(temperature)
++                .scale(scale)
++                .downfall(downfall)
++                .category(category)
++                .effects(biomeEffects)
++                .precipitation(precipitation)
++                .temperatureModifier(temperatureModifier)
++                .build();
++    }
++
++    private static void writeBiomeEffects(BiomeEffects biomeEffect, BinaryWriter binaryWriter) {
++        binaryWriter.writeInt(biomeEffect.fogColor());
++        binaryWriter.writeInt(biomeEffect.skyColor());
++        binaryWriter.writeInt(biomeEffect.waterColor());
++        binaryWriter.writeInt(biomeEffect.waterFogColor());
++        binaryWriter.writeInt(biomeEffect.foliageColor());
++        binaryWriter.writeInt(biomeEffect.grassColor());
++
++        binaryWriter.writeBoolean(biomeEffect.grassColorModifier() != null);
++        if (biomeEffect.grassColorModifier() != null) {
++            binaryWriter.writeSizedString(biomeEffect.grassColorModifier().toString());
++        }
++
++        binaryWriter.writeBoolean(biomeEffect.biomeParticle() != null);
++        if (biomeEffect.biomeParticle() != null) {
++            writeBiomeParticle(biomeEffect.biomeParticle(), binaryWriter);
++        }
++
++        binaryWriter.writeBoolean(biomeEffect.ambientSound() != null);
++        if (biomeEffect.ambientSound() != null) {
++            binaryWriter.writeSizedString(biomeEffect.ambientSound().domain());
++            binaryWriter.writeSizedString(biomeEffect.ambientSound().path());
++        }
++
++        binaryWriter.writeBoolean(biomeEffect.moodSound() != null);
++        if(biomeEffect.moodSound() != null) {
++            writeMoodSound(biomeEffect.moodSound(), binaryWriter);
++        }
++
++        binaryWriter.writeBoolean(biomeEffect.additionsSound() != null);
++        if(biomeEffect.additionsSound() != null) {
++            writeAdditionsSound(biomeEffect.additionsSound(), binaryWriter);
++        }
++
++        binaryWriter.writeBoolean(biomeEffect.music() != null);
++        if(biomeEffect.music() != null) {
++            writeMusic(biomeEffect.music(), binaryWriter);
++        }
++    }
++
++    private static BiomeEffects readBiomeEffects(BinaryReader binaryReader) {
++        int fogColor = binaryReader.readInt();
++        int skyColor = binaryReader.readInt();
++        int waterColor = binaryReader.readInt();
++        int waterFogColor = binaryReader.readInt();
++        int foliageColor = binaryReader.readInt();
++        int grassColor = binaryReader.readInt();
++
++        BiomeEffects.GrassColorModifier grassColorModifier = null;
++        if(binaryReader.readBoolean()) {
++            grassColorModifier = BiomeEffects.GrassColorModifier.valueOf(binaryReader.readSizedString());
++        }
++
++        BiomeParticle biomeParticle = null;
++        if(binaryReader.readBoolean()) {
++            biomeParticle = readBiomeParticle(binaryReader);
++        }
++
++        NamespaceID ambientSound = null;
++        if(binaryReader.readBoolean()) {
++            ambientSound = NamespaceID.from(binaryReader.readSizedString(), binaryReader.readSizedString());
++        }
++
++        BiomeEffects.MoodSound moodSound = null;
++        if(binaryReader.readBoolean()) {
++            moodSound = readMoodSound(binaryReader);
++        }
++
++        BiomeEffects.AdditionsSound additionsSound = null;
++        if(binaryReader.readBoolean()) {
++            additionsSound = readAdditionsSound(binaryReader);
++        }
++
++        BiomeEffects.Music music = null;
++        if(binaryReader.readBoolean()) {
++            music = readMusic(binaryReader);
++        }
++
++        return new BiomeEffects(fogColor, skyColor, waterColor, waterFogColor, foliageColor, grassColor, grassColorModifier, biomeParticle, ambientSound, moodSound, additionsSound, music);
++    }
++
++    private static void writeBiomeParticle(BiomeParticle biomeParticle, BinaryWriter binaryWriter) {
++        binaryWriter.writeFloat(biomeParticle.probability());
++
++        if (biomeParticle.option() instanceof BiomeParticle.BlockOption blockOption) {
++            binaryWriter.write(0);
++
++            binaryWriter.writeShort(blockOption.block().stateId());
++        } else if (biomeParticle.option() instanceof BiomeParticle.DustOption dustOption) {
++            binaryWriter.write(1);
++
++            binaryWriter.writeFloat(dustOption.red());
++            binaryWriter.writeFloat(dustOption.green());
++            binaryWriter.writeFloat(dustOption.blue());
++            binaryWriter.writeFloat(dustOption.scale());
++        } else if (biomeParticle.option() instanceof BiomeParticle.ItemOption itemOption) {
++            binaryWriter.write(2);
++
++            binaryWriter.writeItemStack(itemOption.item());
++        } else if (biomeParticle.option() instanceof BiomeParticle.NormalOption normalOption) {
++            binaryWriter.write(3);
++
++            binaryWriter.writeSizedString(normalOption.type().domain());
++            binaryWriter.writeSizedString(normalOption.type().path());
++        }
++    }
++
++    private static BiomeParticle readBiomeParticle(BinaryReader binaryReader) {
++        float probability = binaryReader.readFloat();
++        BiomeParticle.Option option = null;
++
++        byte optionType = binaryReader.readByte();
++        switch (optionType) {
++            case 0 -> option = new BiomeParticle.BlockOption(Block.fromStateId(binaryReader.readShort()));
++
++            case 1 -> {
++                float red, green, blue, scale;
++
++                red = binaryReader.readFloat();
++                green = binaryReader.readFloat();
++                blue = binaryReader.readFloat();
++                scale = binaryReader.readFloat();
++
++                option = new BiomeParticle.DustOption(red, green, blue, scale);
++            }
++
++            case 2 -> option = new BiomeParticle.ItemOption(binaryReader.readItemStack());
++
++            case 3 -> option = new BiomeParticle.NormalOption(NamespaceID.from(binaryReader.readSizedString(), binaryReader.readSizedString()));
++        }
++
++        return new BiomeParticle(probability, option);
++    }
++
++    private static void writeMoodSound(BiomeEffects.MoodSound moodSound, BinaryWriter binaryWriter) {
++        binaryWriter.writeSizedString(moodSound.sound().domain());
++        binaryWriter.writeSizedString(moodSound.sound().path());
++
++        binaryWriter.writeInt(moodSound.tickDelay());
++        binaryWriter.writeInt(moodSound.blockSearchExtent());
++        binaryWriter.writeDouble(moodSound.offset());
++    }
++
++    private static BiomeEffects.MoodSound readMoodSound(BinaryReader binaryReader) {
++        NamespaceID sound = NamespaceID.from(binaryReader.readSizedString(), binaryReader.readSizedString());
++
++        int tickDelay = binaryReader.readInt();
++        int blockSearchExtent = binaryReader.readInt();
++        double offset = binaryReader.readDouble();
++
++        return new BiomeEffects.MoodSound(sound, tickDelay, blockSearchExtent, offset);
++    }
++
++    private static void writeAdditionsSound(BiomeEffects.AdditionsSound additionsSound, BinaryWriter binaryWriter) {
++        binaryWriter.writeSizedString(additionsSound.sound().domain());
++        binaryWriter.writeSizedString(additionsSound.sound().path());
++
++        binaryWriter.writeDouble(additionsSound.tickChance());
++    }
++
++    private static BiomeEffects.AdditionsSound readAdditionsSound(BinaryReader binaryReader) {
++        NamespaceID sound = NamespaceID.from(binaryReader.readSizedString(), binaryReader.readSizedString());
++        double tickChance = binaryReader.readDouble();
++
++        return new BiomeEffects.AdditionsSound(sound, tickChance);
++    }
++
++    private static void writeMusic(BiomeEffects.Music music, BinaryWriter binaryWriter) {
++        binaryWriter.writeSizedString(music.sound().domain());
++        binaryWriter.writeSizedString(music.sound().path());
++
++        binaryWriter.writeInt(music.minDelay());
++        binaryWriter.writeInt(music.maxDelay());
++        binaryWriter.writeBoolean(music.replaceCurrentMusic());
++    }
++
++    private static BiomeEffects.Music readMusic(BinaryReader binaryReader) {
++        NamespaceID sound = NamespaceID.from(binaryReader.readSizedString(), binaryReader.readSizedString());
++
++        int minDelay = binaryReader.readInt();
++        int maxDelay = binaryReader.readInt();
++        boolean replaceCurrentMusic = binaryReader.readBoolean();
++
++        return new BiomeEffects.Music(sound, minDelay, maxDelay, replaceCurrentMusic);
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/world/SkullHandler.java b/src/main/java/net/defade/yokura/world/SkullHandler.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..eddf6aeb7869acf5d6184b199b5cd673fdf17b96
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/world/SkullHandler.java
+@@ -0,0 +1,27 @@
++package net.defade.yokura.world;
++
++import net.minestom.server.instance.block.Block;
++import net.minestom.server.instance.block.BlockHandler;
++import net.minestom.server.tag.Tag;
++import net.minestom.server.utils.NamespaceID;
++import org.jetbrains.annotations.NotNull;
++
++import java.util.Collection;
++
++public class SkullHandler implements BlockHandler {
++
++    @Override
++    public @NotNull Collection<Tag<?>> getBlockEntityTags() {
++        return BlockHandler.super.getBlockEntityTags();
++    }
++
++    @Override
++    public byte getBlockEntityAction() {
++        return BlockHandler.super.getBlockEntityAction();
++    }
++
++    @Override
++    public @NotNull NamespaceID getNamespaceId() {
++        return Block.PLAYER_HEAD.namespace();
++    }
++}
+diff --git a/src/main/java/net/minestom/server/instance/Chunk.java b/src/main/java/net/minestom/server/instance/Chunk.java
+index 71086a0591c2f25967651e5f7ce600dcf466779f..f3a956621d034160679817830519facd96378518 100644
+--- a/src/main/java/net/minestom/server/instance/Chunk.java
++++ b/src/main/java/net/minestom/server/instance/Chunk.java
+@@ -1,5 +1,6 @@
+ package net.minestom.server.instance;
+ 
++import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+ import net.minestom.server.Tickable;
+ import net.minestom.server.Viewable;
+ import net.minestom.server.coordinate.Point;
+@@ -68,6 +69,8 @@ public abstract class Chunk implements Block.Getter, Block.Setter, Biome.Getter,
+         this.viewers = new ChunkView(instance, toPosition());
+     }
+ 
++    public abstract Int2ObjectOpenHashMap<Block> getBlockEntities();
++
+     /**
+      * Sets a block at a position.
+      * <p>
+diff --git a/src/main/java/net/minestom/server/instance/DynamicChunk.java b/src/main/java/net/minestom/server/instance/DynamicChunk.java
+index 6b7230f3ddf6b2d3ac5fb82060e427276ecc3618..a3fc44202f5c400d5e2d05e464ba85624c7a4927 100644
+--- a/src/main/java/net/minestom/server/instance/DynamicChunk.java
++++ b/src/main/java/net/minestom/server/instance/DynamicChunk.java
+@@ -57,6 +57,17 @@ public class DynamicChunk extends Chunk {
+         this.sections = List.of(sectionsTemp);
+     }
+ 
++    protected void invalidate() {
++        this.lastChange = System.currentTimeMillis();
++        this.chunkCache.invalidate();
++        this.lightCache.invalidate();
++    }
++
++    @Override
++    public Int2ObjectOpenHashMap<Block> getBlockEntities() {
++        return entries;
++    }
++
+     @Override
+     public void setBlock(int x, int y, int z, @NotNull Block block) {
+         assertLock();
+diff --git a/src/main/java/net/minestom/server/instance/Section.java b/src/main/java/net/minestom/server/instance/Section.java
+index edda1189dcc5c14aa7bb60c861b4f13098e9725c..6f9b2f39889973bc0310ee7d3e4451d17a0c4498 100644
+--- a/src/main/java/net/minestom/server/instance/Section.java
++++ b/src/main/java/net/minestom/server/instance/Section.java
+@@ -1,17 +1,18 @@
+ package net.minestom.server.instance;
+ 
++import net.minestom.server.instance.palette.AdaptivePalette;
+ import net.minestom.server.instance.palette.Palette;
+ import net.minestom.server.utils.binary.BinaryWriter;
+ import net.minestom.server.utils.binary.Writeable;
+ import org.jetbrains.annotations.NotNull;
+ 
+ public final class Section implements Writeable {
+-    private Palette blockPalette;
+-    private Palette biomePalette;
++    private AdaptivePalette blockPalette;
++    private AdaptivePalette biomePalette;
+     private byte[] skyLight;
+     private byte[] blockLight;
+ 
+-    private Section(Palette blockPalette, Palette biomePalette,
++    private Section(AdaptivePalette blockPalette, AdaptivePalette biomePalette,
+                     byte[] skyLight, byte[] blockLight) {
+         this.blockPalette = blockPalette;
+         this.biomePalette = biomePalette;
+@@ -24,11 +25,11 @@ public final class Section implements Writeable {
+                 new byte[0], new byte[0]);
+     }
+ 
+-    public Palette blockPalette() {
++    public AdaptivePalette blockPalette() {
+         return blockPalette;
+     }
+ 
+-    public Palette biomePalette() {
++    public AdaptivePalette biomePalette() {
+         return biomePalette;
+     }
+ 
+diff --git a/src/main/java/net/minestom/server/instance/palette/AdaptivePalette.java b/src/main/java/net/minestom/server/instance/palette/AdaptivePalette.java
+index 6b36f3748bc46134fa68781494eb4a874919be50..7746cbede57918afae056329728b0a0fc6db2cc5 100644
+--- a/src/main/java/net/minestom/server/instance/palette/AdaptivePalette.java
++++ b/src/main/java/net/minestom/server/instance/palette/AdaptivePalette.java
+@@ -1,5 +1,6 @@
+ package net.minestom.server.instance.palette;
+ 
++import it.unimi.dsi.fastutil.ints.IntArrayList;
+ import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+ import it.unimi.dsi.fastutil.ints.IntSet;
+ import net.minestom.server.utils.MathUtils;
+@@ -11,7 +12,7 @@ import java.util.function.IntUnaryOperator;
+ /**
+  * Palette that switches between its backend based on the use case.
+  */
+-final class AdaptivePalette implements Palette, Cloneable {
++public final class AdaptivePalette implements Palette, Cloneable {
+     final byte dimension, defaultBitsPerEntry, maxBitsPerEntry;
+     SpecializedPalette palette;
+ 
+@@ -94,8 +95,27 @@ final class AdaptivePalette implements Palette, Cloneable {
+         return dimension;
+     }
+ 
++    public boolean isFilledPalette() {
++        return palette instanceof FilledPalette;
++    }
++
++    public FlexiblePalette getAsFlexiblePalette() {
++        if(palette instanceof FlexiblePalette) {
++            return (FlexiblePalette) palette;
++        } else {
++            FlexiblePalette flexiblePalette = new FlexiblePalette(this);
++            flexiblePalette.fill(palette.get(0, 0, 0)); // This is a filled palette, so all the values are the same.
++
++            return flexiblePalette;
++        }
++    }
++
++    public void createFlexiblePalette(byte bitsPerEntry, IntArrayList paletteToValueList, int count, long[] values) {
++       palette = new FlexiblePalette(this, bitsPerEntry, paletteToValueList, count, values);
++    }
++
+     @Override
+-    public @NotNull Palette clone() {
++    public @NotNull AdaptivePalette clone() {
+         try {
+             AdaptivePalette adaptivePalette = (AdaptivePalette) super.clone();
+             adaptivePalette.palette = palette.clone();
+diff --git a/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java b/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java
+index d5429247b619c30168f0369f03d33aeadfb675c4..fad36b5ba139463fb583e1e27feb7f5a92623e79 100644
+--- a/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java
++++ b/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java
+@@ -14,7 +14,7 @@ import java.util.function.IntUnaryOperator;
+ /**
+  * Palette able to take any value anywhere. May consume more memory than required.
+  */
+-final class FlexiblePalette implements SpecializedPalette, Cloneable {
++public final class FlexiblePalette implements SpecializedPalette, Cloneable {
+     private static final ThreadLocal<int[]> WRITE_CACHE = ThreadLocal.withInitial(() -> new int[4096]);
+ 
+     // Specific to this palette type
+@@ -43,6 +43,22 @@ final class FlexiblePalette implements SpecializedPalette, Cloneable {
+         this.values = new long[(maxSize() + valuesPerLong - 1) / valuesPerLong];
+     }
+ 
++    FlexiblePalette(AdaptivePalette adaptivePalette, byte bitsPerEntry, IntArrayList paletteToValueList, int count, long[] values) {
++        this.adaptivePalette = adaptivePalette;
++        this.bitsPerEntry = bitsPerEntry;
++        this.paletteToValueList = paletteToValueList;
++
++        this.valueToPaletteMap = new Int2IntOpenHashMap(1);
++        this.valueToPaletteMap.put(0, 0);
++        this.valueToPaletteMap.defaultReturnValue(-1);
++        for (int i = 0; i < paletteToValueList.size(); i++) {
++            valueToPaletteMap.put(i, paletteToValueList.getInt(i));
++        }
++
++        this.count = count;
++        this.values = values;
++    }
++
+     FlexiblePalette(AdaptivePalette adaptivePalette) {
+         this(adaptivePalette, adaptivePalette.defaultBitsPerEntry);
+     }
+@@ -191,6 +207,14 @@ final class FlexiblePalette implements SpecializedPalette, Cloneable {
+         return adaptivePalette.dimension();
+     }
+ 
++    public IntArrayList paletteToValueList() {
++        return paletteToValueList;
++    }
++
++    public long[] values() {
++        return values;
++    }
++
+     @Override
+     public @NotNull SpecializedPalette clone() {
+         try {
+diff --git a/src/main/java/net/minestom/server/instance/palette/Palette.java b/src/main/java/net/minestom/server/instance/palette/Palette.java
+index 5a07685e9ae707851fae486ad0a7133a3b787ad3..f0dbd2dcf8d273cbadba7e46e0d4b4b4932c9eb8 100644
+--- a/src/main/java/net/minestom/server/instance/palette/Palette.java
++++ b/src/main/java/net/minestom/server/instance/palette/Palette.java
+@@ -11,15 +11,15 @@ import java.util.function.IntUnaryOperator;
+  * 0 is the default value.
+  */
+ public interface Palette extends Writeable {
+-    static Palette blocks() {
++    static AdaptivePalette blocks() {
+         return newPalette(16, 8, 4);
+     }
+ 
+-    static Palette biomes() {
++    static AdaptivePalette biomes() {
+         return newPalette(4, 3, 1);
+     }
+ 
+-    static Palette newPalette(int dimension, int maxBitsPerEntry, int bitsPerEntry) {
++    static AdaptivePalette newPalette(int dimension, int maxBitsPerEntry, int bitsPerEntry) {
+         return new AdaptivePalette((byte) dimension, (byte) maxBitsPerEntry, (byte) bitsPerEntry);
+     }
+ 
