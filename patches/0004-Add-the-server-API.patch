@@ -175,7 +175,7 @@ index 0000000000000000000000000000000000000000..1df7780b67ed9ae9d517cbcfd568c6b0
 +    }
 +}
 diff --git a/src/main/java/net/minestom/server/MinecraftServer.java b/src/main/java/net/minestom/server/MinecraftServer.java
-index bff2c0698041abe73265da98d6013fe1deeb67b7..c4349e700e81172c9ae8e85fe9dc8b87b6dfe75a 100644
+index aef3ad4be58ef24ad0ba027c843f46fc5023a5f4..c37519935a0c48791759543cfcfb292ef7c91ac7 100644
 --- a/src/main/java/net/minestom/server/MinecraftServer.java
 +++ b/src/main/java/net/minestom/server/MinecraftServer.java
 @@ -1,6 +1,7 @@
@@ -221,7 +221,7 @@ index cdf6ef96681f3cd3680902463bb5ac896867e378..4c1528b7ce0ee44a8de5675179b56c4d
  
      void stop();
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
-index a17afa4da4477e446c92d3413f0f23c222236b91..16e6eb01d6be06519c52445ad10ebee2e5361199 100644
+index 1fd2f1df7a20098021addc83f71e1152accf936b..8461a9fb7a65bfdb10cb351f422a87ca90a2c732 100644
 --- a/src/main/java/net/minestom/server/ServerProcessImpl.java
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
 @@ -6,6 +6,8 @@ import net.defade.bismuth.core.servers.GameType;
@@ -272,7 +272,7 @@ index a17afa4da4477e446c92d3413f0f23c222236b91..16e6eb01d6be06519c52445ad10ebee2
          CompletableFuture<Void> connectFuture = bismuthClient.connect(bismuth);
          try {
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index a95545f13b159b9e1664fcf725d668eb975b03ec..eee8b88643dd13afd91bbc43c9c724a00e77afed 100644
+index e2f3946b86613292af40a9ec222883e3c5f9c385..e4d683c976f09a4e3123ca61657fac7987cd7200 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
 @@ -1,5 +1,6 @@

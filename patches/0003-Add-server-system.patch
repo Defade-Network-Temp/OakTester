@@ -5,7 +5,7 @@ Subject: [PATCH] Add server system
 
 
 diff --git a/build.gradle.kts b/build.gradle.kts
-index 8ec029d7421dac729be7151d24e5379b87668625..dfd40fc7e25948abb66b09ae27df4c941b4284e6 100644
+index 703412fe711056d7d18b2012750dbc0ae0b52afc..308ed86736eb50eb0a9c45fcadd8161b26c398dc 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
 @@ -1,7 +1,11 @@
@@ -169,7 +169,7 @@ index 0000000000000000000000000000000000000000..be6f06016586286c2f89049af663c22b
 +    }
 +}
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
-index 036d3a2d09bf363e127c1abd281277f5462a9b4b..a17afa4da4477e446c92d3413f0f23c222236b91 100644
+index 48940286aafa522df0c3e4b4bc3323d90b3ed496..1fd2f1df7a20098021addc83f71e1152accf936b 100644
 --- a/src/main/java/net/minestom/server/ServerProcessImpl.java
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
 @@ -5,6 +5,7 @@ import net.defade.bismuth.client.BismuthClient;
@@ -238,7 +238,7 @@ index 036d3a2d09bf363e127c1abd281277f5462a9b4b..a17afa4da4477e446c92d3413f0f23c2
 -        extension.start();
          extension.gotoPreInit();
  
-         LOGGER.info("Starting Minestom server.");
+         LOGGER.info("Starting " + MinecraftServer.getBrandName() + " server.");
 diff --git a/src/main/java/net/minestom/server/extensions/Extension.java b/src/main/java/net/minestom/server/extensions/Extension.java
 index 1130e83ec7beae5f31e43e7d9384ab1016babf1c..6477a461e0174ca94ab5c77fc244a398468b8ca4 100644
 --- a/src/main/java/net/minestom/server/extensions/Extension.java

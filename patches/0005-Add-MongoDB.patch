@@ -5,7 +5,7 @@ Subject: [PATCH] Add MongoDB
 
 
 diff --git a/build.gradle.kts b/build.gradle.kts
-index dfd40fc7e25948abb66b09ae27df4c941b4284e6..84119db965b36a2524bfc522ab5109808d21f925 100644
+index 308ed86736eb50eb0a9c45fcadd8161b26c398dc..5ac83ca87d14ddcde6dabe1fedf0bc9d6cc0083c 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
 @@ -91,6 +91,7 @@ dependencies {
@@ -17,7 +17,7 @@ index dfd40fc7e25948abb66b09ae27df4c941b4284e6..84119db965b36a2524bfc522ab510980
      // NBT parsing/manipulation/saving
      api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
 diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
-index a81d8a7507e204b9b265fc1df3c9f1777d8d6b60..e8462bcc65081f2d52f18713b40520a495b4149c 100644
+index b42f2c75bbc76d51d6b5749ec64b3c5030aa28be..7ee3b93d0df0503178e9db865eb5a8b0f9d59805 100644
 --- a/gradle/libs.versions.toml
 +++ b/gradle/libs.versions.toml
 @@ -40,6 +40,7 @@ jmh = "1.35"
@@ -142,7 +142,7 @@ index 0000000000000000000000000000000000000000..5cd43615a51802acfeb6e6d5cf1ed7e5
 +}
 \ No newline at end of file
 diff --git a/src/main/java/net/minestom/server/MinecraftServer.java b/src/main/java/net/minestom/server/MinecraftServer.java
-index c4349e700e81172c9ae8e85fe9dc8b87b6dfe75a..d998c271c47f72c39bac5357bc8962bab5028f38 100644
+index c37519935a0c48791759543cfcfb292ef7c91ac7..d3c9ae17f98f78cfbea6d87c4b6e15b278c159b2 100644
 --- a/src/main/java/net/minestom/server/MinecraftServer.java
 +++ b/src/main/java/net/minestom/server/MinecraftServer.java
 @@ -1,5 +1,7 @@
@@ -199,7 +199,7 @@ index 4c1528b7ce0ee44a8de5675179b56c4da64f6e68..dccc482f1003260a54a2798a06417a97
  
      void stop();
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
-index 16e6eb01d6be06519c52445ad10ebee2e5361199..71c5fd71918db7285e2cb8b95824cf49a18bd1ff 100644
+index 8461a9fb7a65bfdb10cb351f422a87ca90a2c732..69c52d1c2695af09e8d433a4e918e43df9dfdc16 100644
 --- a/src/main/java/net/minestom/server/ServerProcessImpl.java
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
 @@ -1,5 +1,10 @@
@@ -259,4 +259,4 @@ index 16e6eb01d6be06519c52445ad10ebee2e5361199..71c5fd71918db7285e2cb8b95824cf49
 +
          extension.gotoPreInit();
  
-         LOGGER.info("Starting Minestom server.");
+         LOGGER.info("Starting " + MinecraftServer.getBrandName() + " server.");

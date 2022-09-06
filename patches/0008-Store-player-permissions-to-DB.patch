@@ -5,7 +5,7 @@ Subject: [PATCH] Store player permissions to DB
 
 
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index ff834e53d11e8a94504d989600840ac4ee13da7a..3450f178294b173a81364c9e36d061ea15bf2709 100644
+index d144d0192285e1067ce2be05baa2137163a83fbf..1f790323d01391025d38df9d13fab266a5e32e13 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
 @@ -60,6 +60,7 @@ import net.minestom.server.network.packet.server.login.LoginDisconnectPacket;

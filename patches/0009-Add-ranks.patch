@@ -46,7 +46,7 @@ index 0000000000000000000000000000000000000000..a0b1c9a5858e058bee26620720edadda
 +    }
 +}
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index 3450f178294b173a81364c9e36d061ea15bf2709..516951ccaa47411edaaaf042ed80b6df26933aa3 100644
+index 1f790323d01391025d38df9d13fab266a5e32e13..793a7c7aefa9a63c538905404402b7ee3b55f074 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
 @@ -1,6 +1,7 @@

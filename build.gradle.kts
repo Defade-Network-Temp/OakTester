@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "net.defade"
-version = "1.19.1-R1.0-SNAPSHOT"
+version = "1.19.2-R1.0-SNAPSHOT"
 
 patches {
     submodule = "Minestom"

@@ -5,7 +5,7 @@ Subject: [PATCH] Add bismuth
 
 
 diff --git a/build.gradle.kts b/build.gradle.kts
-index 0dae157034f5bf2d6fb5780565d068a9db8ad035..8ec029d7421dac729be7151d24e5379b87668625 100644
+index c7ffc28e9112a51d7bad5603a3eca9ef2f20e900..703412fe711056d7d18b2012750dbc0ae0b52afc 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
 @@ -79,6 +79,8 @@ dependencies {
@@ -18,7 +18,7 @@ index 0dae157034f5bf2d6fb5780565d068a9db8ad035..8ec029d7421dac729be7151d24e5379b
      api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
      api("io.github.jglrxavpok.hephaistos:gson:${libs.versions.hephaistos.get()}")
 diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
-index 0c9a95d015233c25c61bb7f01a2dd92a5a54bf23..a81d8a7507e204b9b265fc1df3c9f1777d8d6b60 100644
+index f949e6c581c4bd2d72774ba262a87d4bcadeb9aa..b42f2c75bbc76d51d6b5749ec64b3c5030aa28be 100644
 --- a/gradle/libs.versions.toml
 +++ b/gradle/libs.versions.toml
 @@ -39,6 +39,8 @@ jmh = "1.35"
@@ -107,7 +107,7 @@ index 0000000000000000000000000000000000000000..dd74b16a66dbcf46e40e23888e36b546
 +    }
 +}
 diff --git a/src/main/java/net/minestom/server/MinecraftServer.java b/src/main/java/net/minestom/server/MinecraftServer.java
-index 993a9123dba9442173133700b091b8ebbe1b98e4..bff2c0698041abe73265da98d6013fe1deeb67b7 100644
+index 7b43a30b0eb653d692ac9f6d8bd64b5146df5075..aef3ad4be58ef24ad0ba027c843f46fc5023a5f4 100644
 --- a/src/main/java/net/minestom/server/MinecraftServer.java
 +++ b/src/main/java/net/minestom/server/MinecraftServer.java
 @@ -1,5 +1,6 @@
@@ -152,7 +152,7 @@ index 89ec44a64d04b59006fcbea7a5616c0ccbaf0030..cdf6ef96681f3cd3680902463bb5ac89
  
      void stop();
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
-index 91379c82f0bec6c2586c91157d41776903788bb8..036d3a2d09bf363e127c1abd281277f5462a9b4b 100644
+index 761fef7e5bd507adf4417109e922031dec42c37d..48940286aafa522df0c3e4b4bc3323d90b3ed496 100644
 --- a/src/main/java/net/minestom/server/ServerProcessImpl.java
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
 @@ -1,6 +1,10 @@
