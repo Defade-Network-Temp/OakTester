@@ -68,3 +68,16 @@ index 2d01fa83b1f1a73876fe9c6d9120ad043666deaa..c7ffc28e9112a51d7bad5603a3eca9ef
  }
  
  sourceSets {
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index 491db1ddd441c3f6f50edccdf4982ecd4a328599..29f87b1e5537e9a9dfe2614c511adfd121746267 100644
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -16,7 +16,7 @@ pluginManagement {
+     includeBuild("build-logic")
+ }
+ 
+-rootProject.name = "Minestom"
++rootProject.name = "Yokura"
+ include("code-generators")
+ include("jmh-benchmarks")
+ include("jcstress-tests")

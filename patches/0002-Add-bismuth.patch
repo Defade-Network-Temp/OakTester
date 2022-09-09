@@ -40,7 +40,7 @@ index f949e6c581c4bd2d72774ba262a87d4bcadeb9aa..b42f2c75bbc76d51d6b5749ec64b3c50
  
  kotlin = ["kotlin-stdlib-jdk8", "kotlin-reflect"]
 diff --git a/settings.gradle.kts b/settings.gradle.kts
-index 491db1ddd441c3f6f50edccdf4982ecd4a328599..116279d1ddcc70106fa45d03e66246d9794a9cd4 100644
+index 29f87b1e5537e9a9dfe2614c511adfd121746267..31af8af052bbd35a59695b08c43f5e12d35ef4d7 100644
 --- a/settings.gradle.kts
 +++ b/settings.gradle.kts
 @@ -5,6 +5,10 @@ dependencyResolutionManagement {
