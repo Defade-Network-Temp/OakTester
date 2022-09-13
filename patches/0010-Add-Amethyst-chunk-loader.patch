@@ -680,39 +680,6 @@ index 0000000000000000000000000000000000000000..9e1d4c7bd0c10b934a70cdeb2f6479ca
 +        return new BiomeEffects.Music(sound, minDelay, maxDelay, replaceCurrentMusic);
 +    }
 +}
-diff --git a/src/main/java/net/defade/yokura/world/SkullHandler.java b/src/main/java/net/defade/yokura/world/SkullHandler.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..eddf6aeb7869acf5d6184b199b5cd673fdf17b96
---- /dev/null
-+++ b/src/main/java/net/defade/yokura/world/SkullHandler.java
-@@ -0,0 +1,27 @@
-+package net.defade.yokura.world;
-+
-+import net.minestom.server.instance.block.Block;
-+import net.minestom.server.instance.block.BlockHandler;
-+import net.minestom.server.tag.Tag;
-+import net.minestom.server.utils.NamespaceID;
-+import org.jetbrains.annotations.NotNull;
-+
-+import java.util.Collection;
-+
-+public class SkullHandler implements BlockHandler {
-+
-+    @Override
-+    public @NotNull Collection<Tag<?>> getBlockEntityTags() {
-+        return BlockHandler.super.getBlockEntityTags();
-+    }
-+
-+    @Override
-+    public byte getBlockEntityAction() {
-+        return BlockHandler.super.getBlockEntityAction();
-+    }
-+
-+    @Override
-+    public @NotNull NamespaceID getNamespaceId() {
-+        return Block.PLAYER_HEAD.namespace();
-+    }
-+}
 diff --git a/src/main/java/net/minestom/server/instance/Chunk.java b/src/main/java/net/minestom/server/instance/Chunk.java
 index 71086a0591c2f25967651e5f7ce600dcf466779f..f3a956621d034160679817830519facd96378518 100644
 --- a/src/main/java/net/minestom/server/instance/Chunk.java
