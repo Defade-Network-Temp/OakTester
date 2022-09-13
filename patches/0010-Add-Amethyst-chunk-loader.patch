@@ -28,10 +28,10 @@ index 0000000000000000000000000000000000000000..f98d707aa1c4bfb4fe7b5297943c46e3
 +}
 diff --git a/src/main/java/net/defade/yokura/amethyst/AmethystChunkLoader.java b/src/main/java/net/defade/yokura/amethyst/AmethystChunkLoader.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..ef91926ca405a3e7843bea897a8fa092f160f031
+index 0000000000000000000000000000000000000000..d875a3346541f4e52f400e60b3132112a1713c4d
 --- /dev/null
 +++ b/src/main/java/net/defade/yokura/amethyst/AmethystChunkLoader.java
-@@ -0,0 +1,340 @@
+@@ -0,0 +1,376 @@
 +package net.defade.yokura.amethyst;
 +
 +import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -181,9 +181,9 @@ index 0000000000000000000000000000000000000000..ef91926ca405a3e7843bea897a8fa092
 +            byte sectionsAmount = byteBuffer.get();
 +            for (byte sectionIndex = 0; sectionIndex < sectionsAmount; sectionIndex++) {
 +                Section section = amethystChunk.getSections().get(sectionIndex);
-+                byte paletteType = byteBuffer.get();
++                byte blockPaletteType = byteBuffer.get();
 +
-+                if (paletteType == 0) {
++                if (blockPaletteType == 0) {
 +                    section.blockPalette().fill(byteBuffer.getShort());
 +                } else {
 +                    byte blockBitsPerEntry = byteBuffer.get();
@@ -203,12 +203,26 @@ index 0000000000000000000000000000000000000000..ef91926ca405a3e7843bea897a8fa092
 +                    section.blockPalette().createFlexiblePalette(blockBitsPerEntry, blockPaletteToValueList, blockCount, blockValues);
 +                }
 +
-+                for (int y = 0; y < 4; y++) {
-+                    for (int z = 0; z < 4; z++) {
-+                        for (int x = 0; x < 4; x++) {
-+                            section.biomePalette().set(x, y, z, biomes.get((int) byteBuffer.get()));
-+                        }
++                byte biomePaletteType = byteBuffer.get();
++
++                if (biomePaletteType == 0) {
++                    section.biomePalette().fill(byteBuffer.getShort());
++                } else {
++                    byte biomeBitsPerEntry = byteBuffer.get();
++
++                    short biomeMapSize = byteBuffer.getShort();
++                    IntArrayList biomePaletteToValueList = new IntArrayList(biomeMapSize);
++                    for (int i = 0; i < biomeMapSize; i++) {
++                        biomePaletteToValueList.add((int) biomes.get((int) byteBuffer.getShort()));
 +                    }
++
++                    short biomeCount = byteBuffer.getShort();
++
++                    long[] biomeValues = new long[byteBuffer.getShort()];
++                    byteBuffer.asLongBuffer().get(biomeValues);
++                    byteBuffer.position(byteBuffer.position() + (biomeValues.length * 8));
++
++                    section.biomePalette().createFlexiblePalette(biomeBitsPerEntry, biomePaletteToValueList, biomeCount, biomeValues);
 +                }
 +            }
 +
@@ -269,6 +283,7 @@ index 0000000000000000000000000000000000000000..ef91926ca405a3e7843bea897a8fa092
 +            int arraySize = Byte.BYTES; // Pre-calculating the array size allows us to define the original byte array size, avoiding useless and costly resizes.
 +            for (int i = 0; i < chunk.getSections().size(); i++) {
 +                AdaptivePalette blockPalette = chunk.getSections().get(i).blockPalette();
++                AdaptivePalette biomePalette = chunk.getSections().get(i).biomePalette();
 +
 +                arraySize = arraySize + Byte.BYTES;
 +                if (blockPalette.isFilledPalette()) {
@@ -278,7 +293,12 @@ index 0000000000000000000000000000000000000000..ef91926ca405a3e7843bea897a8fa092
 +                    arraySize = arraySize + Byte.BYTES + Short.BYTES + (flexiblePalette.paletteToValueList().size() * Short.BYTES) + Short.BYTES + Short.BYTES + (flexiblePalette.values().length * Long.BYTES);
 +                }
 +
-+                arraySize = arraySize + 64;
++                if (biomePalette.isFilledPalette()) {
++                    arraySize = arraySize + Short.BYTES;
++                } else {
++                    FlexiblePalette flexiblePalette = biomePalette.getAsFlexiblePalette();
++                    arraySize = arraySize + Byte.BYTES + Short.BYTES + (flexiblePalette.paletteToValueList().size() * Short.BYTES) + Short.BYTES + Short.BYTES + (flexiblePalette.values().length * Long.BYTES);
++                }
 +            }
 +
 +            arraySize = arraySize + Integer.BYTES;
@@ -312,13 +332,29 @@ index 0000000000000000000000000000000000000000..ef91926ca405a3e7843bea897a8fa092
 +                    }
 +                }
 +
-+                section.biomePalette().getAll((x, y, z, value) -> {
-+                    try {
-+                        dataOutputStream.write((byte) value);
-+                    } catch (IOException exception) {
-+                        completableFuture.completeExceptionally(exception);
++                AdaptivePalette biomePalette = section.biomePalette();
++                if (biomePalette.isFilledPalette()) {
++                    dataOutputStream.write(0);
++                    dataOutputStream.writeShort((short) biomePalette.get(0, 0, 0));
++                } else {
++                    FlexiblePalette flexiblePalette = biomePalette.getAsFlexiblePalette();
++                    dataOutputStream.write(1);
++                    dataOutputStream.write((byte) flexiblePalette.bitsPerEntry());
++
++                    IntArrayList biomePaletteToValueList = flexiblePalette.paletteToValueList();
++                    dataOutputStream.writeShort((short) biomePaletteToValueList.size());
++                    for (int value : biomePaletteToValueList) {
++                        dataOutputStream.writeShort((short) value);
 +                    }
-+                });
++
++                    dataOutputStream.writeShort((short) flexiblePalette.count());
++
++                    long[] biomeValues = flexiblePalette.values();
++                    dataOutputStream.writeShort((short) biomeValues.length);
++                    for (long biomeValue : biomeValues) {
++                        dataOutputStream.writeLong(biomeValue);
++                    }
++                }
 +            }
 +
 +            Int2ObjectOpenHashMap<Block> blockEntities = chunk.getBlockEntities();
