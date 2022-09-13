@@ -809,7 +809,7 @@ index 6b36f3748bc46134fa68781494eb4a874919be50..7746cbede57918afae056329728b0a0f
              AdaptivePalette adaptivePalette = (AdaptivePalette) super.clone();
              adaptivePalette.palette = palette.clone();
 diff --git a/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java b/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java
-index d5429247b619c30168f0369f03d33aeadfb675c4..fad36b5ba139463fb583e1e27feb7f5a92623e79 100644
+index d5429247b619c30168f0369f03d33aeadfb675c4..313971931625c8c1d87db035396afa13ed037c80 100644
 --- a/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java
 +++ b/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java
 @@ -14,7 +14,7 @@ import java.util.function.IntUnaryOperator;
@@ -859,6 +859,18 @@ index d5429247b619c30168f0369f03d33aeadfb675c4..fad36b5ba139463fb583e1e27feb7f5a
      @Override
      public @NotNull SpecializedPalette clone() {
          try {
+@@ -267,9 +291,9 @@ final class FlexiblePalette implements SpecializedPalette, Cloneable {
+     void resize(byte newBitsPerEntry) {
+         newBitsPerEntry = newBitsPerEntry > maxBitsPerEntry() ? 15 : newBitsPerEntry;
+         FlexiblePalette palette = new FlexiblePalette(adaptivePalette, newBitsPerEntry);
+-        palette.paletteToValueList = paletteToValueList;
+-        palette.valueToPaletteMap = valueToPaletteMap;
+         getAll(palette::set);
++        paletteToValueList = palette.paletteToValueList;
++        valueToPaletteMap = palette.valueToPaletteMap;
+         this.bitsPerEntry = palette.bitsPerEntry;
+         this.values = palette.values;
+         assert this.count == palette.count;
 diff --git a/src/main/java/net/minestom/server/instance/palette/Palette.java b/src/main/java/net/minestom/server/instance/palette/Palette.java
 index 5a07685e9ae707851fae486ad0a7133a3b787ad3..f0dbd2dcf8d273cbadba7e46e0d4b4b4932c9eb8 100644
 --- a/src/main/java/net/minestom/server/instance/palette/Palette.java
