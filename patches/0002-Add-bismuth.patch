@@ -18,14 +18,14 @@ index c7ffc28e9112a51d7bad5603a3eca9ef2f20e900..703412fe711056d7d18b2012750dbc0a
      api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
      api("io.github.jglrxavpok.hephaistos:gson:${libs.versions.hephaistos.get()}")
 diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
-index f949e6c581c4bd2d72774ba262a87d4bcadeb9aa..28aea6d0c1f9438c14b3aa8b8d476357bc9dd229 100644
+index f949e6c581c4bd2d72774ba262a87d4bcadeb9aa..60502f072d8d608fc8e12630fe02a900a34df4da 100644
 --- a/gradle/libs.versions.toml
 +++ b/gradle/libs.versions.toml
 @@ -39,6 +39,8 @@ jmh = "1.35"
  # JCStress
  jcstress = "0.8"
  
-+bismuth = "1.0.1"
++bismuth = "1.1.0"
 +
  [libraries]
  
@@ -56,12 +56,13 @@ index 29f87b1e5537e9a9dfe2614c511adfd121746267..31af8af052bbd35a59695b08c43f5e12
  
 diff --git a/src/main/java/net/defade/yokura/YokuraPacketListener.java b/src/main/java/net/defade/yokura/YokuraPacketListener.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..b86a992fbb718350052f22c4da6e630041b40bef
+index 0000000000000000000000000000000000000000..a4a26aa927e73beed35308641c1ecfe911c09457
 --- /dev/null
 +++ b/src/main/java/net/defade/yokura/YokuraPacketListener.java
 @@ -0,0 +1,47 @@
 +package net.defade.yokura;
 +
++import java.net.InetSocketAddress;
 +import net.defade.bismuth.core.listeners.client.YokuraClientPacketListener;
 +import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundCreatedServerPacket;
 +import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundDeletedServerPacket;
@@ -70,11 +71,10 @@ index 0000000000000000000000000000000000000000..b86a992fbb718350052f22c4da6e6300
 +import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundStopServerPacket;
 +import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundUpdateServerStatusPacket;
 +import net.defade.bismuth.core.servers.GameType;
-+import net.defade.bismuth.core.servers.Server;
 +
 +public class YokuraPacketListener extends YokuraClientPacketListener {
-+    public YokuraPacketListener(GameType gameType, String velocityIdTracker, int port) {
-+        super(gameType, velocityIdTracker, port);
++    public YokuraPacketListener(GameType gameType, String velocityIdTracker, InetSocketAddress address) {
++        super(gameType, velocityIdTracker, address);
 +    }
 +
 +    @Override
@@ -153,7 +153,7 @@ index 89ec44a64d04b59006fcbea7a5616c0ccbaf0030..cdf6ef96681f3cd3680902463bb5ac89
  
      void stop();
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
-index 761fef7e5bd507adf4417109e922031dec42c37d..e033dbde1cec2fd8c0ce03ffde29b8954e8dced2 100644
+index 761fef7e5bd507adf4417109e922031dec42c37d..f6d76c2d4af327c1bfe1bbc0bb507b5a4519cf82 100644
 --- a/src/main/java/net/minestom/server/ServerProcessImpl.java
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
 @@ -1,6 +1,10 @@
@@ -195,7 +195,7 @@ index 761fef7e5bd507adf4417109e922031dec42c37d..e033dbde1cec2fd8c0ce03ffde29b895
          this.dispatcher = ThreadDispatcher.singleThread();
          this.ticker = new TickerImpl();
 +
-+        this.bismuth = new YokuraPacketListener(new GameType("", ""), "", -1);
++        this.bismuth = new YokuraPacketListener(new GameType("", ""), "", new java.net.InetSocketAddress("", -1));
      }
  
      @Override

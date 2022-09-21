@@ -17,13 +17,13 @@ index 308ed86736eb50eb0a9c45fcadd8161b26c398dc..5ac83ca87d14ddcde6dabe1fedf0bc9d
      // NBT parsing/manipulation/saving
      api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
 diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
-index 28aea6d0c1f9438c14b3aa8b8d476357bc9dd229..51316b8a22b14564bb758860ba91d4b5f7299d19 100644
+index 60502f072d8d608fc8e12630fe02a900a34df4da..0023f459ad53b5e6b832426c11fa7400be260a87 100644
 --- a/gradle/libs.versions.toml
 +++ b/gradle/libs.versions.toml
 @@ -40,6 +40,7 @@ jmh = "1.35"
  jcstress = "0.8"
  
- bismuth = "1.0.1"
+ bismuth = "1.1.0"
 +mongodb = "3.12.11"
  
  [libraries]
@@ -199,7 +199,7 @@ index 4c1528b7ce0ee44a8de5675179b56c4da64f6e68..dccc482f1003260a54a2798a06417a97
  
      void stop();
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
-index 159da2c12c0448df2b6a11e815051e09106c9ede..b9192cbe32d139c3941a2d5f505ef650661bdbfe 100644
+index 8b738c6c77996f07f264ad82990c448a4c7c6934..6829a1dc3b4cf26c903e086f8d7fea47d2cd06a3 100644
 --- a/src/main/java/net/minestom/server/ServerProcessImpl.java
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
 @@ -1,5 +1,10 @@
@@ -213,7 +213,7 @@ index 159da2c12c0448df2b6a11e815051e09106c9ede..b9192cbe32d139c3941a2d5f505ef650
  import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
  import net.defade.bismuth.client.BismuthClient;
  import net.defade.bismuth.core.servers.GameType;
-@@ -79,6 +84,8 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -82,6 +87,8 @@ final class ServerProcessImpl implements ServerProcess {
  
      private final ServerAPIImpl serverAPI;
      private YokuraPacketListener bismuth;
@@ -222,7 +222,7 @@ index 159da2c12c0448df2b6a11e815051e09106c9ede..b9192cbe32d139c3941a2d5f505ef650
  
      private final AtomicBoolean started = new AtomicBoolean();
      private final AtomicBoolean stopped = new AtomicBoolean();
-@@ -225,6 +232,16 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -228,6 +235,16 @@ final class ServerProcessImpl implements ServerProcess {
          return serverAPI;
      }
  
@@ -239,7 +239,7 @@ index 159da2c12c0448df2b6a11e815051e09106c9ede..b9192cbe32d139c3941a2d5f505ef650
      @Override
      public void start(@NotNull SocketAddress socketAddress) {
          if (!started.compareAndSet(false, true)) {
-@@ -255,6 +272,20 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -263,6 +280,20 @@ final class ServerProcessImpl implements ServerProcess {
              throw new RuntimeException(e);
          }
  
@@ -255,7 +255,7 @@ index 159da2c12c0448df2b6a11e815051e09106c9ede..b9192cbe32d139c3941a2d5f505ef650
 +            LOGGER.error("Couldn't connect to the MongoDB server.");
 +            exception.handleException(e);
 +            throw new RuntimeException(e);
-+        }
++       }
 +
          extension.gotoPreInit();
  

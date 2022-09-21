@@ -5,28 +5,29 @@ Subject: [PATCH] Add the server API
 
 
 diff --git a/src/main/java/net/defade/yokura/YokuraPacketListener.java b/src/main/java/net/defade/yokura/YokuraPacketListener.java
-index faedd9c41fcd8ef84a195aa424b63c47a32998a1..7cb9c40b1064e8f675a94effdc5e02be216ed72e 100644
+index 3cc92e4db5487e5ae02bcf6327f9f44a5dfeba2b..431d509ef2b0ffc9b159bf00a8f9b195d3f8c03a 100644
 --- a/src/main/java/net/defade/yokura/YokuraPacketListener.java
 +++ b/src/main/java/net/defade/yokura/YokuraPacketListener.java
-@@ -9,12 +9,16 @@ import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundStopSer
+@@ -9,12 +9,17 @@ import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundServers
+ import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundStopServerPacket;
  import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundUpdateServerStatusPacket;
  import net.defade.bismuth.core.servers.GameType;
- import net.defade.bismuth.core.servers.Server;
++import net.defade.bismuth.core.servers.Server;
 +import net.defade.yokura.servers.ServerAPIImpl;
  import net.minestom.server.MinecraftServer;
  import net.minestom.server.extras.velocity.VelocityProxy;
  
  public class YokuraPacketListener extends YokuraClientPacketListener {
--    public YokuraPacketListener(GameType gameType, String velocityIdTracker, int port) {
+-    public YokuraPacketListener(GameType gameType, String velocityIdTracker, InetSocketAddress address) {
 +    private final ServerAPIImpl serverAPI;
 +
-+    public YokuraPacketListener(GameType gameType, String velocityIdTracker, int port, ServerAPIImpl serverAPI) {
-         super(gameType, velocityIdTracker, port);
++    public YokuraPacketListener(GameType gameType, String velocityIdTracker, InetSocketAddress address, ServerAPIImpl serverAPI) {
+         super(gameType, velocityIdTracker, address);
 +        this.serverAPI = serverAPI;
      }
  
      @Override
-@@ -24,22 +28,24 @@ public class YokuraPacketListener extends YokuraClientPacketListener {
+@@ -24,22 +29,24 @@ public class YokuraPacketListener extends YokuraClientPacketListener {
  
      @Override
      public void handleServersList(ClientboundServersListPacket clientboundServersListPacket) {
@@ -221,19 +222,19 @@ index cdf6ef96681f3cd3680902463bb5ac896867e378..4c1528b7ce0ee44a8de5675179b56c4d
  
      void stop();
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
-index 27560626ac8e588bd188d666de8161fa9f333394..159da2c12c0448df2b6a11e815051e09106c9ede 100644
+index a0af2629e4689a1424203f51b9cc56f2279d34fa..8b738c6c77996f07f264ad82990c448a4c7c6934 100644
 --- a/src/main/java/net/minestom/server/ServerProcessImpl.java
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
-@@ -6,6 +6,8 @@ import net.defade.bismuth.core.servers.GameType;
- import net.defade.bismuth.core.servers.ServerStatus;
- import net.defade.yokura.YokuraPacketListener;
+@@ -8,6 +8,8 @@ import net.defade.yokura.YokuraPacketListener;
  import net.defade.yokura.config.YokuraConfig;
+ import net.defade.yokura.ngrok.NgrokException;
+ import net.defade.yokura.ngrok.NgrokProcess;
 +import net.defade.yokura.servers.ServerAPI;
 +import net.defade.yokura.servers.ServerAPIImpl;
  import net.minestom.server.advancements.AdvancementManager;
  import net.minestom.server.adventure.bossbar.BossBarManager;
  import net.minestom.server.command.CommandManager;
-@@ -75,6 +77,7 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -78,6 +80,7 @@ final class ServerProcessImpl implements ServerProcess {
      private final ThreadDispatcher<Chunk> dispatcher;
      private final Ticker ticker;
  
@@ -241,7 +242,7 @@ index 27560626ac8e588bd188d666de8161fa9f333394..159da2c12c0448df2b6a11e815051e09
      private YokuraPacketListener bismuth;
  
      private final AtomicBoolean started = new AtomicBoolean();
-@@ -103,6 +106,8 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -106,6 +109,8 @@ final class ServerProcessImpl implements ServerProcess {
  
          this.dispatcher = ThreadDispatcher.singleThread();
          this.ticker = new TickerImpl();
@@ -250,7 +251,7 @@ index 27560626ac8e588bd188d666de8161fa9f333394..159da2c12c0448df2b6a11e815051e09
      }
  
      @Override
-@@ -215,6 +220,11 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -218,6 +223,11 @@ final class ServerProcessImpl implements ServerProcess {
          return bismuth;
      }
  
@@ -262,12 +263,12 @@ index 27560626ac8e588bd188d666de8161fa9f333394..159da2c12c0448df2b6a11e815051e09
      @Override
      public void start(@NotNull SocketAddress socketAddress) {
          if (!started.compareAndSet(false, true)) {
-@@ -236,7 +246,7 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -244,7 +254,7 @@ final class ServerProcessImpl implements ServerProcess {
+             throw new RuntimeException(e);
+         }
  
-         socketAddress = new java.net.InetSocketAddress("localhost", port);
- 
--        this.bismuth = new YokuraPacketListener(extension.getServerGameType(), YokuraConfig.velocityIdTracker, port);
-+        this.bismuth = new YokuraPacketListener(extension.getServerGameType(), YokuraConfig.velocityIdTracker, port, serverAPI);
+-        this.bismuth = new YokuraPacketListener(extension.getServerGameType(), YokuraConfig.velocityIdTracker, (InetSocketAddress) socketAddress);
++        this.bismuth = new YokuraPacketListener(extension.getServerGameType(), YokuraConfig.velocityIdTracker, (InetSocketAddress) socketAddress, serverAPI);
          CompletableFuture<Void> connectFuture = bismuthClient.connect(bismuth);
          try {
              connectFuture.get();

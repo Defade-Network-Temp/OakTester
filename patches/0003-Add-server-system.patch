@@ -94,18 +94,18 @@ index 0000000000000000000000000000000000000000..24a5b433e0e5b8dbe485fa69b0873554
 +    }
 +}
 diff --git a/src/main/java/net/defade/yokura/YokuraPacketListener.java b/src/main/java/net/defade/yokura/YokuraPacketListener.java
-index b86a992fbb718350052f22c4da6e630041b40bef..faedd9c41fcd8ef84a195aa424b63c47a32998a1 100644
+index a4a26aa927e73beed35308641c1ecfe911c09457..3cc92e4db5487e5ae02bcf6327f9f44a5dfeba2b 100644
 --- a/src/main/java/net/defade/yokura/YokuraPacketListener.java
 +++ b/src/main/java/net/defade/yokura/YokuraPacketListener.java
-@@ -9,6 +9,8 @@ import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundStopSer
+@@ -9,6 +9,8 @@ import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundServers
+ import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundStopServerPacket;
  import net.defade.bismuth.core.protocol.packets.yokura.client.ClientboundUpdateServerStatusPacket;
  import net.defade.bismuth.core.servers.GameType;
- import net.defade.bismuth.core.servers.Server;
 +import net.minestom.server.MinecraftServer;
 +import net.minestom.server.extras.velocity.VelocityProxy;
  
  public class YokuraPacketListener extends YokuraClientPacketListener {
-     public YokuraPacketListener(GameType gameType, String velocityIdTracker, int port) {
+     public YokuraPacketListener(GameType gameType, String velocityIdTracker, InetSocketAddress address) {
 @@ -17,7 +19,7 @@ public class YokuraPacketListener extends YokuraClientPacketListener {
  
      @Override
@@ -125,10 +125,10 @@ index b86a992fbb718350052f22c4da6e630041b40bef..faedd9c41fcd8ef84a195aa424b63c47
  }
 diff --git a/src/main/java/net/defade/yokura/config/YokuraConfig.java b/src/main/java/net/defade/yokura/config/YokuraConfig.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..c4fbabf395711c2e39e06acd99b782c144d3d3ff
+index 0000000000000000000000000000000000000000..b413f83ada270c07f153206b9509b51ff3f7a7fe
 --- /dev/null
 +++ b/src/main/java/net/defade/yokura/config/YokuraConfig.java
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,42 @@
 +package net.defade.yokura.config;
 +
 +import java.io.IOException;
@@ -142,6 +142,7 @@ index 0000000000000000000000000000000000000000..c4fbabf395711c2e39e06acd99b782c1
 +    public static int bismuthPort = 9600;
 +    public static byte[] bismuthPassword = new byte[0];
 +    public static String velocityIdTracker = null;
++    public static boolean usesNgrok = false;
 +
 +    public static void init(String[] args) throws IOException {
 +        Map<String, String> arguments = new HashMap<>();
@@ -166,21 +167,121 @@ index 0000000000000000000000000000000000000000..c4fbabf395711c2e39e06acd99b782c1
 +        }
 +
 +        velocityIdTracker = arguments.getOrDefault("velocity-id-tracker", velocityIdTracker);
++
++        usesNgrok = Boolean.parseBoolean(arguments.getOrDefault("ngrok", String.valueOf(usesNgrok)));
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/ngrok/NgrokException.java b/src/main/java/net/defade/yokura/ngrok/NgrokException.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..d6fd7130be963243ecff2f3713582ecf9ae1a700
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/ngrok/NgrokException.java
+@@ -0,0 +1,21 @@
++package net.defade.yokura.ngrok;
++
++public class NgrokException extends Exception {
++    public NgrokException(String[] logs) {
++        this(getLogs(logs));
++    }
++    public NgrokException(String logs) {
++        super(logs);
++    }
++
++    private static String getLogs(String[] logs) {
++        StringBuilder logBuilder = new StringBuilder();
++
++        for (String log : logs) {
++            logBuilder.append(log);
++            logBuilder.append("\n");
++        }
++
++        return logBuilder.toString();
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/ngrok/NgrokProcess.java b/src/main/java/net/defade/yokura/ngrok/NgrokProcess.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a08ada4b989ea0e739dd0acb9b1dcd174d894e
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/ngrok/NgrokProcess.java
+@@ -0,0 +1,55 @@
++package net.defade.yokura.ngrok;
++
++import java.io.BufferedReader;
++import java.io.IOException;
++import java.io.InputStreamReader;
++import java.util.ArrayList;
++import java.util.List;
++
++public class NgrokProcess {
++    private String ngrokUrl = null;
++
++    public String start(int port) throws IOException, NgrokException {
++        ProcessBuilder processBuilder = new ProcessBuilder();
++        processBuilder.redirectErrorStream(true);
++        processBuilder.inheritIO().redirectOutput(ProcessBuilder.Redirect.PIPE);
++
++        List<String> command = new ArrayList<>();
++        command.add("ngrok");
++        command.add("tcp");
++        command.add(String.valueOf(port));
++        command.add("--log");
++        command.add("stdout");
++
++        processBuilder.command(command);
++
++        Process ngrokProcess = processBuilder.start();
++        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
++            ngrokProcess.destroy();
++            ngrokProcess.onExit().join();
++        }));
++
++        BufferedReader reader = new BufferedReader(new InputStreamReader(ngrokProcess.getInputStream()));
++
++        List<String> logs = new ArrayList<>();
++
++        String line;
++        while ((line = reader.readLine()) != null) {
++            logs.add(line);
++            if(line.contains("url=")) { // Get data
++                ngrokUrl = line.substring(line.indexOf("url=") + 10);
++                break;
++            }
++        }
++
++        if(ngrokUrl == null) {
++            throw new NgrokException(logs.toArray(new String[0]));
++        } else {
++            return ngrokUrl;
++        }
++    }
++
++    public String getNgrokUrl() {
++        return ngrokUrl;
 +    }
 +}
 diff --git a/src/main/java/net/minestom/server/ServerProcessImpl.java b/src/main/java/net/minestom/server/ServerProcessImpl.java
-index e033dbde1cec2fd8c0ce03ffde29b8954e8dced2..27560626ac8e588bd188d666de8161fa9f333394 100644
+index f6d76c2d4af327c1bfe1bbc0bb507b5a4519cf82..a0af2629e4689a1424203f51b9cc56f2279d34fa 100644
 --- a/src/main/java/net/minestom/server/ServerProcessImpl.java
 +++ b/src/main/java/net/minestom/server/ServerProcessImpl.java
-@@ -5,6 +5,7 @@ import net.defade.bismuth.client.BismuthClient;
+@@ -5,6 +5,9 @@ import net.defade.bismuth.client.BismuthClient;
  import net.defade.bismuth.core.servers.GameType;
  import net.defade.bismuth.core.servers.ServerStatus;
  import net.defade.yokura.YokuraPacketListener;
 +import net.defade.yokura.config.YokuraConfig;
++import net.defade.yokura.ngrok.NgrokException;
++import net.defade.yokura.ngrok.NgrokProcess;
  import net.minestom.server.advancements.AdvancementManager;
  import net.minestom.server.adventure.bossbar.BossBarManager;
  import net.minestom.server.command.CommandManager;
-@@ -74,7 +75,7 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -40,6 +43,7 @@ import org.jetbrains.annotations.NotNull;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ import java.io.IOException;
++import java.net.InetSocketAddress;
+ import java.net.SocketAddress;
+ import java.util.ArrayList;
+ import java.util.List;
+@@ -74,7 +78,7 @@ final class ServerProcessImpl implements ServerProcess {
      private final ThreadDispatcher<Chunk> dispatcher;
      private final Ticker ticker;
  
@@ -189,21 +290,21 @@ index e033dbde1cec2fd8c0ce03ffde29b8954e8dced2..27560626ac8e588bd188d666de8161fa
  
      private final AtomicBoolean started = new AtomicBoolean();
      private final AtomicBoolean stopped = new AtomicBoolean();
-@@ -102,8 +103,6 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -102,8 +106,6 @@ final class ServerProcessImpl implements ServerProcess {
  
          this.dispatcher = ThreadDispatcher.singleThread();
          this.ticker = new TickerImpl();
 -
--        this.bismuth = new YokuraPacketListener(new GameType("", ""), "", -1);
+-        this.bismuth = new YokuraPacketListener(new GameType("", ""), "", new java.net.InetSocketAddress("", -1));
      }
  
      @Override
-@@ -222,7 +221,22 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -222,7 +224,27 @@ final class ServerProcessImpl implements ServerProcess {
              throw new IllegalStateException("Server already started");
          }
  
 -        BismuthClient bismuthClient = new BismuthClient("localhost", 9600, new byte[0]);
-+        BismuthClient bismuthClient = new BismuthClient("localhost", 9600, YokuraConfig.bismuthPassword);
++        BismuthClient bismuthClient = new BismuthClient(YokuraConfig.bismuthHost, YokuraConfig.bismuthPort, YokuraConfig.bismuthPassword);
 +        extension.start();
 +
 +        int port;
@@ -211,18 +312,23 @@ index e033dbde1cec2fd8c0ce03ffde29b8954e8dced2..27560626ac8e588bd188d666de8161fa
 +            java.net.ServerSocket serverSocket = new java.net.ServerSocket(0);
 +            port = serverSocket.getLocalPort();
 +            serverSocket.close();
-+        } catch (IOException e) {
++
++            if(YokuraConfig.usesNgrok) {
++                String[] url = new NgrokProcess().start(port).split(":");
++                socketAddress = new java.net.InetSocketAddress(url[0], Integer.parseInt(url[1]));
++            } else {
++                socketAddress = new java.net.InetSocketAddress("localhost", port);
++            }
++        } catch (IOException | NgrokException e) {
 +            exception.handleException(e);
 +            throw new RuntimeException(e);
 +        }
 +
-+        socketAddress = new java.net.InetSocketAddress("localhost", port);
-+
-+        this.bismuth = new YokuraPacketListener(extension.getServerGameType(), YokuraConfig.velocityIdTracker, port);
++        this.bismuth = new YokuraPacketListener(extension.getServerGameType(), YokuraConfig.velocityIdTracker, (InetSocketAddress) socketAddress);
          CompletableFuture<Void> connectFuture = bismuthClient.connect(bismuth);
          try {
              connectFuture.get();
-@@ -231,7 +245,6 @@ final class ServerProcessImpl implements ServerProcess {
+@@ -231,7 +253,6 @@ final class ServerProcessImpl implements ServerProcess {
              throw new RuntimeException(e);
          }
  
@@ -230,6 +336,15 @@ index e033dbde1cec2fd8c0ce03ffde29b8954e8dced2..27560626ac8e588bd188d666de8161fa
          extension.gotoPreInit();
  
          LOGGER.info("Starting " + MinecraftServer.getBrandName() + " server.");
+@@ -240,7 +261,7 @@ final class ServerProcessImpl implements ServerProcess {
+ 
+         // Init server
+         try {
+-            server.init(socketAddress);
++            server.init(new java.net.InetSocketAddress("localhost", port));
+         } catch (IOException e) {
+             exception.handleException(e);
+             throw new RuntimeException(e);
 diff --git a/src/main/java/net/minestom/server/extensions/Extension.java b/src/main/java/net/minestom/server/extensions/Extension.java
 index 1130e83ec7beae5f31e43e7d9384ab1016babf1c..6477a461e0174ca94ab5c77fc244a398468b8ca4 100644
 --- a/src/main/java/net/minestom/server/extensions/Extension.java
