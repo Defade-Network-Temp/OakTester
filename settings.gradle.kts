@@ -9,4 +9,6 @@ pluginManagement {
     }
 }
 
-includeBuild("Yokura")
+if (File(rootDir, "Yokura").exists()) {
+    includeBuild("Yokura")
+}
