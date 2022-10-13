@@ -53,7 +53,7 @@ index b63a95323b4e20af1c36f29f24c623d978016696..a9518601c3775e9a3654f410b7f5eece
  }
 \ No newline at end of file
 diff --git a/build.gradle.kts b/build.gradle.kts
-index 2d01fa83b1f1a73876fe9c6d9120ad043666deaa..c7ffc28e9112a51d7bad5603a3eca9ef2f20e900 100644
+index 5c8299fcc971fb481b428e22efdf1e92051f4b3c..39200e231bb32f3dcd595de3ed55ddbcc3e3aa99 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
 @@ -5,9 +5,8 @@ plugins {
@@ -69,7 +69,7 @@ index 2d01fa83b1f1a73876fe9c6d9120ad043666deaa..c7ffc28e9112a51d7bad5603a3eca9ef
  
  sourceSets {
 diff --git a/settings.gradle.kts b/settings.gradle.kts
-index 491db1ddd441c3f6f50edccdf4982ecd4a328599..29f87b1e5537e9a9dfe2614c511adfd121746267 100644
+index 2230bb02892d10d6756722105337ae6434cc8a35..a2d24392f10dc181932f4ae9e6699ed10e4ff3c1 100644
 --- a/settings.gradle.kts
 +++ b/settings.gradle.kts
 @@ -16,7 +16,7 @@ pluginManagement {

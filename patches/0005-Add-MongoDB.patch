@@ -5,10 +5,10 @@ Subject: [PATCH] Add MongoDB
 
 
 diff --git a/build.gradle.kts b/build.gradle.kts
-index 308ed86736eb50eb0a9c45fcadd8161b26c398dc..5ac83ca87d14ddcde6dabe1fedf0bc9d6cc0083c 100644
+index 6a98456c98162b3090495831d72ab81bddb41ba0..aa0ec5de854cf14a69772aa55ed1bc028461a75f 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
-@@ -91,6 +91,7 @@ dependencies {
+@@ -87,6 +87,7 @@ dependencies {
      implementation(libs.minestomData)
  
      api(libs.bismuth)
@@ -17,7 +17,7 @@ index 308ed86736eb50eb0a9c45fcadd8161b26c398dc..5ac83ca87d14ddcde6dabe1fedf0bc9d
      // NBT parsing/manipulation/saving
      api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
 diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
-index 60502f072d8d608fc8e12630fe02a900a34df4da..0023f459ad53b5e6b832426c11fa7400be260a87 100644
+index 4619874991eb81544e6eefa9f6573f140f11f958..fc29713c8779f91dc400c273177dd4418e7d6abd 100644
 --- a/gradle/libs.versions.toml
 +++ b/gradle/libs.versions.toml
 @@ -40,6 +40,7 @@ jmh = "1.35"

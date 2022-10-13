@@ -5,7 +5,7 @@ Subject: [PATCH] Add server system
 
 
 diff --git a/build.gradle.kts b/build.gradle.kts
-index 703412fe711056d7d18b2012750dbc0ae0b52afc..308ed86736eb50eb0a9c45fcadd8161b26c398dc 100644
+index be741bc2ede0735c2718f3ff012cc1a31fde261f..6a98456c98162b3090495831d72ab81bddb41ba0 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
 @@ -1,7 +1,11 @@
@@ -32,9 +32,9 @@ index 703412fe711056d7d18b2012750dbc0ae0b52afc..308ed86736eb50eb0a9c45fcadd8161b
 +}
 +
  dependencies {
-     // Junit Testing Framework
-     testImplementation(libs.junit.api)
-@@ -85,3 +96,7 @@ dependencies {
+     // Testing Framework
+     testImplementation(project(mapOf("path" to ":testing")))
+@@ -81,3 +92,7 @@ dependencies {
      api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
      api("io.github.jglrxavpok.hephaistos:gson:${libs.versions.hephaistos.get()}")
  }
