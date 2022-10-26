@@ -1,0 +1,2051 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Am Gone <hygon806@gmail.com>
+Date: Wed, 26 Oct 2022 19:35:39 +0200
+Subject: [PATCH] Pathfinder
+
+
+diff --git a/build.gradle.kts b/build.gradle.kts
+index aa0ec5de854cf14a69772aa55ed1bc028461a75f..8aaf1895075adff0b154c26df9d0bab1ed1f99ad 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -71,8 +71,6 @@ dependencies {
+     // Libraries
+     api(libs.gson)
+     implementation(libs.jcTools)
+-    // Path finding
+-    api(libs.hydrazine)
+ 
+     // Adventure, for user-interface
+     api(libs.bundles.adventure)
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index fc29713c8779f91dc400c273177dd4418e7d6abd..d466005e4b186fcffe5a27f650a7b6ba7446d474 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -5,7 +5,6 @@ metadata.format.version = "1.1"
+ # Important dependencies
+ adventure = "4.11.0"
+ kotlin = "1.6.20"
+-hydrazine = "1.7.2"
+ dependencyGetter = "v1.0.1"
+ minestomData = "1c1921cd41"
+ hephaistos = "2.5.3"
+@@ -56,7 +55,6 @@ kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", vers
+ kotlin-stdlib-jdk8 = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib-jdk8", version.ref = "kotlin" }
+ 
+ # Miscellaneous
+-hydrazine = { group = "com.github.MadMartian", name = "hydrazine-path-finding", version.ref = "hydrazine" }
+ dependencyGetter = { group = "com.github.Minestom", name = "DependencyGetter", version.ref = "dependencyGetter" }
+ minestomData = { group = "com.github.Minestom", name = "MinestomDataGenerator", version.ref = "minestomData" }
+ jetbrainsAnnotations = { group = "org.jetbrains", name = "annotations", version.ref = "jetbrainsAnnotations" }
+diff --git a/src/main/java/net/defade/yokura/pathfinder/Capabilities.java b/src/main/java/net/defade/yokura/pathfinder/Capabilities.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..65d35540ee6fe8186b310eaea555106bf4eb6d98
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/Capabilities.java
+@@ -0,0 +1,6 @@
++package net.defade.yokura.pathfinder;
++
++public enum Capabilities {
++    FIRE_RESISTANT,
++    HYDROPHOBIC
++}
+\ No newline at end of file
+diff --git a/src/main/java/net/defade/yokura/pathfinder/Frontier.java b/src/main/java/net/defade/yokura/pathfinder/Frontier.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..0d7b056eb5ad437f9cd7ca538c843b1baa606e3f
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/Frontier.java
+@@ -0,0 +1,84 @@
++package net.defade.yokura.pathfinder;
++
++import it.unimi.dsi.fastutil.objects.Object2DoubleOpenHashMap;
++import net.defade.yokura.pathfinder.evaluator.Evaluator;
++import net.defade.yokura.pathfinder.nodes.Node;
++import net.defade.yokura.pathfinder.nodes.NodeQueue;
++import net.minestom.server.coordinate.Point;
++import java.util.Arrays;
++import java.util.Map;
++
++class Frontier {
++    private final Evaluator evaluator;
++
++    private final NodeQueue nodeQueue = new NodeQueue();
++    private final Map<Node, Double> costSoFar = new Object2DoubleOpenHashMap<>();
++
++    public Frontier(Evaluator evaluator) {
++        this.evaluator = evaluator;
++    }
++
++    public Node generate(Point startPoint, Point arrivalPoint, boolean bestEffort) {
++        // Calling Point#blockX, blockY or blockZ calls the Math#floor function which should be avoided in loops,
++        // so we're calculating it before.
++        int arrivalPointX = arrivalPoint.blockX();
++        int arrivalPointY = arrivalPoint.blockY();
++        int arrivalPointZ = arrivalPoint.blockZ();
++
++        evaluator.prepare();
++
++        Node startNode = evaluator.getNode(null, startPoint.blockX(), startPoint.blockY(), startPoint.blockZ());
++        costSoFar.put(startNode, 0D);
++        nodeQueue.insert(startNode);
++
++        Node[] neighbors = new Node[4];
++        Node closestNode = null;
++        int closestNodeHeuristic = -1;
++        while (!nodeQueue.isEmpty()) {
++            Node current = nodeQueue.poll();
++            if(current.getX() == arrivalPointX && current.getY() == arrivalPointY && current.getZ() == arrivalPointZ) {
++                finish();
++                return current;
++            }
++
++            Arrays.fill(neighbors, null);
++            evaluator.getNeighbors(neighbors, current);
++
++            for(Node neighbor : neighbors) {
++                if(neighbor == null) continue;
++
++                double newCost = costSoFar.get(current) + neighbor.getCost() + 1;
++
++                Double neighborCostSoFar = costSoFar.get(neighbor);
++                if(neighborCostSoFar == null || newCost < neighborCostSoFar) {
++                    neighbor.setCameFrom(current);
++
++                    costSoFar.put(neighbor, newCost);
++
++                    int heuristic = heuristic(arrivalPointX, arrivalPointY, arrivalPointZ, neighbor);
++                    Node node = new Node(neighbor, newCost + heuristic);
++
++                    if(bestEffort && closestNodeHeuristic == -1 || closestNodeHeuristic > heuristic) {
++                        closestNode = node;
++                        closestNodeHeuristic = heuristic;
++                    }
++
++                    nodeQueue.insert(node);
++                }
++            }
++        }
++
++        finish();
++        return closestNode;
++    }
++
++    private void finish() {
++        evaluator.end();
++        nodeQueue.clear();
++        costSoFar.clear();
++    }
++
++    private int heuristic(int x, int y, int z, Node node) {
++        return Math.abs(x - node.getX()) + Math.abs(y - node.getY()) + Math.abs(z - node.getZ());
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/pathfinder/LookController.java b/src/main/java/net/defade/yokura/pathfinder/LookController.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..7065897f3ec07f146400006f48828c021caeae41
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/LookController.java
+@@ -0,0 +1,46 @@
++package net.defade.yokura.pathfinder;
++
++import net.minestom.server.coordinate.Pos;
++import net.minestom.server.entity.ai.EntityAI;
++import net.minestom.server.utils.position.PositionUtils;
++
++public interface LookController {
++    LookController DEFAULT = new LookController() {
++        @Override
++        public float getYaw(double nodeX, double nodeY, double nodeZ, EntityAI entityAI) {
++            Pos position = entityAI.getEntity().getPosition();
++            final double dx = nodeX - position.x();
++            final double dz = nodeZ - position.z();
++
++            return PositionUtils.getLookYaw(dx, dz);
++        }
++
++        @Override
++        public float getPitch(double nodeX, double nodeY, double nodeZ, EntityAI entityAI) {
++            Pos position = entityAI.getEntity().getPosition();
++            final double dx = nodeX - position.x();
++            final double dy = nodeY - position.y();
++            final double dz = nodeZ - position.z();
++
++            return PositionUtils.getLookPitch(dx, dy, dz);
++        }
++    };
++
++    /**
++     * @param nodeX the x coordinate of the node the pathfinding entity is travelling to.
++     * @param nodeY the y coordinate of the node the pathfinding entity is travelling to.
++     * @param nodeZ the z coordinate of the node the pathfinding entity is travelling to.
++     * @param entityAI the pathfinding entity
++     * @return the yaw of the pathfinding entity
++     */
++    float getYaw(double nodeX, double nodeY, double nodeZ, EntityAI entityAI);
++
++    /**
++     * @param nodeX the x coordinate of the node the pathfinding entity is travelling to.
++     * @param nodeY the y coordinate of the node the pathfinding entity is travelling to.
++     * @param nodeZ the z coordinate of the node the pathfinding entity is travelling to.
++     * @param entityAI the pathfinding entity
++     * @return the pitch of the pathfinding entity
++     */
++    float getPitch(double nodeX, double nodeY, double nodeZ, EntityAI entityAI);
++}
+diff --git a/src/main/java/net/defade/yokura/pathfinder/Path.java b/src/main/java/net/defade/yokura/pathfinder/Path.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..ba5f2c6dc52256235b4f54dc57eea267112761f1
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/Path.java
+@@ -0,0 +1,59 @@
++package net.defade.yokura.pathfinder;
++
++import net.defade.yokura.pathfinder.nodes.Node;
++
++import java.util.List;
++
++public class Path {
++    public static Path EMPTY_PATH = new Path(List.of());
++
++    private final List<Node> nodes;
++    private int nodeIndex = 0;
++
++    public Path(List<Node> nodes) {
++        this.nodes = nodes;
++    }
++
++    public List<Node> getNodes() {
++        return nodes;
++    }
++
++    public int getNodeIndex() {
++        return nodeIndex;
++    }
++
++    public Node getCurrentNode() {
++        return nodes.get(nodeIndex);
++    }
++
++    public Node nextNode() {
++        if(!isFinished()) {
++            nodeIndex++;
++        }
++
++        return getCurrentNode();
++    }
++
++    public void skipNode() {
++        if(!isFinished()) {
++            nodeIndex++;
++        }
++    }
++
++    public Node getNode(int index) {
++        if(index < 0 || index >= nodes.size() - 1) return null;
++        return nodes.get(index);
++    }
++
++    public boolean isFinished() {
++        return nodeIndex == nodes.size() - 1;
++    }
++
++    public boolean isEmpty() {
++        return nodes.isEmpty();
++    }
++
++    public int getIndex() {
++        return nodeIndex;
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/pathfinder/PathFinder.java b/src/main/java/net/defade/yokura/pathfinder/PathFinder.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..95c6c3944cea99ecd14c0e97ffacc2c8f8115402
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/PathFinder.java
+@@ -0,0 +1,164 @@
++package net.defade.yokura.pathfinder;
++
++import it.unimi.dsi.fastutil.objects.ObjectArrayList;
++import net.defade.yokura.pathfinder.evaluator.WalkingEvaluator;
++import net.defade.yokura.pathfinder.nodes.Node;
++import net.minestom.server.collision.CollisionUtils;
++import net.minestom.server.collision.PhysicsResult;
++import net.minestom.server.coordinate.Point;
++import net.minestom.server.coordinate.Pos;
++import net.minestom.server.coordinate.Vec;
++import net.minestom.server.entity.Entity;
++import net.minestom.server.entity.ai.EntityAI;
++import net.minestom.server.entity.pathfinding.Navigator;
++import net.minestom.server.instance.Instance;
++import net.minestom.server.utils.MathUtils;
++import java.util.Collections;
++import java.util.List;
++import java.util.concurrent.CompletableFuture;
++import java.util.concurrent.ForkJoinPool;
++
++public class PathFinder {
++    private static final float ENTITY_REACHED_NODE_DISTANCE_SQRT = 0.25F; // A node will be considered as reached if the pathing entity
++    // is at <= than sqrt(0.25) so 0.5 blocks.
++
++    private final Frontier frontier;
++    private final EntityAI entityAI;
++    private final Entity entity;
++    private final Navigator entityNavigator;
++
++    private Path path = Path.EMPTY_PATH;
++    private LookController lookController = LookController.DEFAULT;
++
++    private int noJumpTicks = 0;
++
++    public PathFinder(Navigator navigator, EntityAI entityAI) {
++        this.frontier = new Frontier(new WalkingEvaluator(entityAI));
++        this.entityAI = entityAI;
++        this.entity = entityAI.getEntity();
++        this.entityNavigator = navigator;
++    }
++
++    public CompletableFuture<Path> getPath(final Point startPoint, final Point arrivalPoint, boolean bestEffort) {
++        CompletableFuture<Path> future = new CompletableFuture<>();
++        ForkJoinPool.commonPool().execute(() -> {
++            // Entities are not perfectly on the ground, they are a bit inside it
++            Point fixedStartPoint = startPoint.add(0, 0.1, 0);
++            Point fixedArrivalPoint = arrivalPoint.add(0, 0.1, 0);
++            List<Node> path = new ObjectArrayList<>();
++
++            Node current = frontier.generate(fixedStartPoint, fixedArrivalPoint, bestEffort);
++            if (current == null) {
++                future.complete(Path.EMPTY_PATH);
++                return;
++            }
++
++            // Calling Point#blockX, blockY or blockZ calls the Math#floor function which should be avoided in loops,
++            // so we're calculating it before.
++            int fixedStartPointX = fixedStartPoint.blockX();
++            int fixedStartPointY = fixedStartPoint.blockY();
++            int fixedStartPointZ = fixedStartPoint.blockZ();
++            while (current.getX() != fixedStartPointX || current.getY() != fixedStartPointY || current.getZ() != fixedStartPointZ) {
++                path.add(current);
++                current = current.getCameFrom();
++                if (current == null) {
++                    break;
++                }
++            }
++
++            Collections.reverse(path);
++
++            this.path = new Path(path);
++            future.complete(this.path);
++        });
++
++        return future;
++    }
++
++    public void reset() {
++        path = Path.EMPTY_PATH;
++    }
++
++    public void tick() {
++        if (!path.isEmpty() && !path.isFinished()) {
++            Node nextNode = path.getCurrentNode();
++            Pos entityPos = entity.getPosition();
++
++            if (distanceSquared(entityPos.x(), entityPos.y(), entityPos.z(),
++                    nextNode.getEntityPosX(), nextNode.getEntityPosY(), nextNode.getEntityPosZ()) <= ENTITY_REACHED_NODE_DISTANCE_SQRT) {
++                path.nextNode();
++                nextNode = stringPull();
++            }
++
++            double yDiff = nextNode.getEntityPosY() - entityPos.y();
++            if (yDiff > 0) {
++                if (yDiff < 0.1) {
++                    entityNavigator.jump(0.2F);
++                } else if (yDiff <= 0.5) {
++                    entityNavigator.jump(1);
++                } else if (noJumpTicks <= 0) {
++                    noJumpTicks = 10;
++                    entityNavigator.jump(4F);
++                }
++            }
++
++            noJumpTicks--;
++
++            float yaw = lookController.getYaw(nextNode.getEntityPosX(), nextNode.getEntityPosY(), nextNode.getEntityPosZ(), entityAI);
++            float pitch = lookController.getPitch(nextNode.getEntityPosX(), nextNode.getEntityPosY(), nextNode.getEntityPosZ(), entityAI);
++            moveTowards(nextNode.getEntityPosX(), nextNode.getEntityPosZ(), yaw, pitch, entityAI.getMovementSpeed());
++        }
++    }
++
++    public void setLookController(LookController lookController) {
++        this.lookController = lookController == null ? LookController.DEFAULT : lookController;
++    }
++
++    private void moveTowards(double x, double z, float yaw, float pitch, double speed) {
++        final Pos position = entity.getPosition();
++        final double dx = x - position.x();
++        final double dz = z - position.z();
++        // the purpose of these few lines is to slow down entities when they reach their destination
++        final double distSquared = dx * dx + dz * dz;
++        if (speed > distSquared) {
++            speed = distSquared;
++        }
++        final double radians = Math.atan2(dz, dx);
++        final double speedX = Math.cos(radians) * speed;
++        final double speedZ = Math.sin(radians) * speed;
++        // Prevent ghosting
++        final var physicsResult = CollisionUtils.handlePhysics(entity, new Vec(speedX, 0, speedZ));
++        this.entity.refreshPosition(physicsResult.newPosition().withView(yaw, pitch));
++    }
++
++    private Node stringPull() {
++        Node currentNode = path.getCurrentNode();
++        Node nextNode = path.getNode(path.getNodeIndex() + 2);
++        if (nextNode == null) {
++            return currentNode;
++        }
++
++        Instance instance = entity.getInstance();
++        if (instance == null) return currentNode;
++
++        Vec vec = new Vec(
++                nextNode.getEntityPosX() - currentNode.getEntityPosX(),
++                nextNode.getEntityPosY() - currentNode.getEntityPosY(),
++                nextNode.getEntityPosZ() - currentNode.getEntityPosZ()
++        );
++
++        PhysicsResult physicsResult = CollisionUtils.handlePhysics(instance, null, entity.getBoundingBox(),
++                new Pos(currentNode.getEntityPosX(), currentNode.getEntityPosY(), currentNode.getEntityPosZ()), vec,
++                null);
++        if (physicsResult.collisionX() || physicsResult.collisionY() || physicsResult.collisionZ()) {
++            return currentNode;
++        }
++
++        path.skipNode();
++        return path.nextNode();
++    }
++
++    private static double distanceSquared(double x1, double y1, double z1, double x2, double y2, double z2) {
++        return MathUtils.square(x1 - x2) + MathUtils.square(y1 - y2) + MathUtils.square(z1 - z2);
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/pathfinder/evaluator/Evaluator.java b/src/main/java/net/defade/yokura/pathfinder/evaluator/Evaluator.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a024177cadf1ea88d3b81b71b1e470869f4c280
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/evaluator/Evaluator.java
+@@ -0,0 +1,39 @@
++package net.defade.yokura.pathfinder.evaluator;
++
++import net.defade.yokura.pathfinder.nodes.Node;
++import net.minestom.server.entity.ai.EntityAI;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++public interface Evaluator {
++    /**
++     * Called before the pathfinder starts looking for a path.
++     */
++    void prepare();
++
++    /**
++     * Called when the pathfinder found a path.
++     */
++    void end();
++
++    /**
++     * @return the {@link EntityAI} of the pathfinding mob.
++     */
++    @NotNull EntityAI getEntity();
++
++    /**
++     * @param from the node that was found before.
++     * @param x the x coords of the node
++     * @param y the y coords of the node
++     * @param z the z coords of the node
++     * @return a node for the corresponding position. Null if there's not enough information to define this type of node.
++     */
++    @Nullable Node getNode(@Nullable Node from, int x, int y, int z);
++
++    /**
++     * Gets all the neighbor of a node.
++     * @param neighbors The array that must be filled with the neighbors
++     * @param node the node whose neighbors must be fetched
++     */
++    void getNeighbors(@Nullable Node[] neighbors, @NotNull Node node);
++}
+diff --git a/src/main/java/net/defade/yokura/pathfinder/evaluator/MutablePos.java b/src/main/java/net/defade/yokura/pathfinder/evaluator/MutablePos.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..7c68069d8053dd947ea8f6dd43132e4ba6881198
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/evaluator/MutablePos.java
+@@ -0,0 +1,127 @@
++package net.defade.yokura.pathfinder.evaluator;
++
++import net.minestom.server.coordinate.Point;
++import org.jetbrains.annotations.NotNull;
++import java.util.function.DoubleUnaryOperator;
++
++class MutablePos implements Point {
++    double x = 0;
++    double y = 0;
++    double z = 0;
++
++    @Override
++    public double x() {
++        return x;
++    }
++
++    @Override
++    public double y() {
++        return y;
++    }
++
++    @Override
++    public double z() {
++        return z;
++    }
++
++    @Override
++    public @NotNull MutablePos withX(@NotNull DoubleUnaryOperator operator) {
++        return withX(operator.applyAsDouble(x));
++    }
++
++    @Override
++    public @NotNull MutablePos withX(double x) {
++        this.x = x;
++        return this;
++    }
++
++    @Override
++    public @NotNull MutablePos withY(@NotNull DoubleUnaryOperator operator) {
++        return withY(operator.applyAsDouble(y));
++    }
++
++    @Override
++    public @NotNull MutablePos withY(double y) {
++        this.y = y;
++        return this;
++    }
++
++    @Override
++    public @NotNull MutablePos withZ(@NotNull DoubleUnaryOperator operator) {
++        return withZ(operator.applyAsDouble(z));
++    }
++
++    @Override
++    public @NotNull MutablePos withZ(double z) {
++        this.z = z;
++        return this;
++    }
++
++    public @NotNull MutablePos with(double x, double y, double z) {
++        this.x = x;
++        this.y = y;
++        this.z = z;
++
++        return this;
++    }
++
++    @Override
++    public @NotNull MutablePos add(double x, double y, double z) {
++        return with(this.x + x, this.y + y, this.z + z);
++    }
++
++    @Override
++    public @NotNull MutablePos add(@NotNull Point point) {
++        return add(point.x(), point.y(), point.z());
++    }
++
++    @Override
++    public @NotNull MutablePos add(double value) {
++        return add(value, value, value);
++    }
++
++    @Override
++    public @NotNull MutablePos sub(double x, double y, double z) {
++        return with(this.x - x, this.y - y, this.z - z);
++    }
++
++    @Override
++    public @NotNull MutablePos sub(@NotNull Point point) {
++        return sub(point.x(), point.y(), point.z());
++    }
++
++    @Override
++    public @NotNull MutablePos sub(double value) {
++        return sub(value, value, value);
++    }
++
++    @Override
++    public @NotNull MutablePos mul(double x, double y, double z) {
++        return with(this.x * x, this.y * y, this.z * z);
++    }
++
++    @Override
++    public @NotNull MutablePos mul(@NotNull Point point) {
++        return mul(point.x(), point.y(), point.z());
++    }
++
++    @Override
++    public @NotNull MutablePos mul(double value) {
++        return mul(value, value, value);
++    }
++
++    @Override
++    public @NotNull MutablePos div(double x, double y, double z) {
++        return with(this.x / x, this.y / y, this.z / z);
++    }
++
++    @Override
++    public @NotNull MutablePos div(@NotNull Point point) {
++        return div(point.x(), point.y(), point.z());
++    }
++
++    @Override
++    public @NotNull MutablePos div(double value) {
++        return div(value, value, value);
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeTypes.java b/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeTypes.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..05c2f8033b93245ae557f9e44125513b9280c587
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeTypes.java
+@@ -0,0 +1,9 @@
++package net.defade.yokura.pathfinder.evaluator;
++
++public enum NodeTypes {
++    AIR_INVALID, // The node is an air block, but we can't go through it.
++    OPEN, // It is an air block, and we can go through it (the block under it is a solid).
++    WALKABLE, // It is a solid, but we can walk on it (slabs, carpets...)
++    SOLID, // It is a full solid block. The entity can't go through it.
++    BLOCKED, // The entity will collide.
++}
+diff --git a/src/main/java/net/defade/yokura/pathfinder/evaluator/WalkingEvaluator.java b/src/main/java/net/defade/yokura/pathfinder/evaluator/WalkingEvaluator.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea91dd4e0c
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/evaluator/WalkingEvaluator.java
+@@ -0,0 +1,309 @@
++package net.defade.yokura.pathfinder.evaluator;
++
++import net.defade.yokura.pathfinder.Capabilities;
++import net.defade.yokura.pathfinder.nodes.Node;
++import net.minestom.server.collision.BoundingBox;
++import net.minestom.server.collision.CollisionUtils;
++import net.minestom.server.collision.PhysicsResult;
++import net.minestom.server.coordinate.Pos;
++import net.minestom.server.coordinate.Vec;
++import net.minestom.server.entity.ai.EntityAI;
++import net.minestom.server.instance.Instance;
++import net.minestom.server.instance.block.Block;
++import net.minestom.server.utils.chunk.ChunkCache;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++import java.util.HashMap;
++import java.util.Map;
++
++public class WalkingEvaluator implements Evaluator {
++    private static final int WATER_BLOCK_ID = Block.WATER.id();
++
++    private static final int FIRE_BLOCK_ID = Block.FIRE.id();
++    private static final int LAVA_BLOCK_ID = Block.LAVA.id();
++    private static final int MAGMA_BLOCK_ID = Block.MAGMA_BLOCK.id();
++    private static final int CAMPFIRE_BLOCK_ID = Block.CAMPFIRE.id();
++    private static final int SOUL_CAMPFIRE_BLOCK_ID = Block.SOUL_CAMPFIRE.id();
++
++    private static final int COBWEB_BLOCK_ID = Block.COBWEB.id();
++
++    private final EntityAI entityAI;
++
++    private final Map<Long, Node> nodeCache = new HashMap<>();
++    private final MutablePos mutablePos = new MutablePos();
++
++    private Instance instance;
++    private BoundingBox boundingBox;
++    private ChunkCache chunkCache;
++
++    private boolean isFireResistant;
++    private boolean isHydrophobic;
++
++    public WalkingEvaluator(EntityAI entityAI) {
++        this.entityAI = entityAI;
++    }
++
++    @Override
++    public void prepare() {
++        this.instance = entityAI.getEntity().getInstance();
++        this.boundingBox = entityAI.getEntity().getBoundingBox();
++        this.chunkCache = new ChunkCache(instance, null);
++
++        this.isFireResistant = entityAI.getCapabilities().contains(Capabilities.FIRE_RESISTANT);
++        this.isHydrophobic = entityAI.getCapabilities().contains(Capabilities.HYDROPHOBIC);
++    }
++
++    @Override
++    public void end() {
++        nodeCache.clear();
++    }
++
++    @Override
++    public @NotNull EntityAI getEntity() {
++        return entityAI;
++    }
++
++    @Override
++    public @Nullable Node getNode(@Nullable Node from, int x, int y, int z) {
++        long nodeHash = Node.uniqueHash(x, y, z);
++        Node node = nodeCache.get(nodeHash);
++        if (node != null) return node;
++
++
++        Block block = getBlock(x, y, z);
++        if (block == null) return null;
++
++        double cost = block.id() == COBWEB_BLOCK_ID ? 1 : 0;
++
++        if (!canWalkOnBlock(block)) return null;
++
++        NodeTypes blockType;
++        if (block.isAir()) {
++            Block down = getBlock(x, y - 1, z);
++
++            if (!canWalkOnBlock(down)) return null;
++            if (isSolid(down)) {
++                blockType = NodeTypes.OPEN;
++            } else {
++                blockType = NodeTypes.AIR_INVALID;
++            }
++        } else if (isSolid(block)) {
++            if (canBeJumped(block)) {
++                blockType = NodeTypes.SOLID;
++            } else {
++                blockType = NodeTypes.BLOCKED;
++            }
++        } else {
++            blockType = NodeTypes.WALKABLE;
++        }
++
++        MutablePos entityOffset = null;
++        if (blockType != NodeTypes.AIR_INVALID && blockType != NodeTypes.SOLID) {
++            if (from != null) {
++                entityOffset = collisionCheck(from, x, y, z, block.registry().collisionShape().relativeEnd().y(), boundingBox);
++                if (entityOffset == null) {
++                    blockType = NodeTypes.BLOCKED;
++                }
++            }
++        }
++
++        if (entityOffset == null) entityOffset = mutablePos.withX(x).withY(y).withZ(z);
++        node = new Node(
++                x, y, z,
++                entityOffset.x(), entityOffset.y(), entityOffset.z(),
++                cost,
++                0d,
++                blockType,
++                Node.hash(x, y, z), nodeHash
++        );
++
++        nodeCache.put(nodeHash, node);
++        return node;
++    }
++
++    @Override
++    public void getNeighbors(@Nullable Node[] neighbors, @NotNull Node center) {
++        Node north = getNode(center, center.getX(), center.getY(), center.getZ() - 1);
++        Node south = getNode(center, center.getX(), center.getY(), center.getZ() + 1);
++        Node west = getNode(center, center.getX() - 1, center.getY(), center.getZ());
++        Node east = getNode(center, center.getX() + 1, center.getY(), center.getZ());
++
++        // We're doing this in order to avoid straight lines.
++        // See more here: https://www.redblobgames.com/pathfinding/a-star/implementation.html#ties-checkerboard-neighbors
++        if ((center.getX() + center.getZ()) % 2 == 0) {
++            if (south != null) neighbors[0] = verifyNeighbor(center, south);
++            if (north != null) neighbors[1] = verifyNeighbor(center, north);
++            if (west != null) neighbors[2] = verifyNeighbor(center, west);
++            if (east != null) neighbors[3] = verifyNeighbor(center, east);
++        } else {
++            if (east != null) neighbors[0] = verifyNeighbor(center, east);
++            if (west != null) neighbors[1] = verifyNeighbor(center, west);
++            if (north != null) neighbors[2] = verifyNeighbor(center, north);
++            if (south != null) neighbors[3] = verifyNeighbor(center, south);
++        }
++    }
++
++    /**
++     * Verify if a neighbor of a node is valid. Finds a valid node on the y-axis if the original neighbor is not valid.
++     *
++     * @param center   the node that the neighbor comes from.
++     * @param neighbor the neighbor that must be verified.
++     * @return null if no neighbors are valid.
++     */
++    private Node verifyNeighbor(Node center, Node neighbor) {
++        if (neighbor.getBlockType() == NodeTypes.BLOCKED) return null;
++
++        if (neighbor.getBlockType() == NodeTypes.OPEN || neighbor.getBlockType() == NodeTypes.WALKABLE) return neighbor;
++
++        if (neighbor.getBlockType() == NodeTypes.AIR_INVALID) {
++            Node down = getNode(center, neighbor.getX(), neighbor.getY() - 1, neighbor.getZ());
++            if (down == null) return null;
++            if (down.getBlockType() == NodeTypes.WALKABLE || down.getBlockType() == NodeTypes.OPEN) {
++                return down;
++            }
++        }
++
++        if (neighbor.getBlockType() == NodeTypes.SOLID) {
++            Node up = getNode(center, neighbor.getX(), neighbor.getY() + 1, neighbor.getZ());
++            if (up == null) return null;
++            if (up.getBlockType() == NodeTypes.WALKABLE || up.getBlockType() == NodeTypes.OPEN) {
++                if (up.getEntityPosY() - neighbor.getEntityPosY() >= 1.2) return null;
++                return up;
++            }
++        }
++
++        return null;
++    }
++
++    private boolean isSolid(Block block) {
++        return block.registry().collisionShape().relativeEnd().y() >= 0.8;
++    }
++
++    private boolean canBeJumped(Block block) {
++        return block.registry().collisionShape().relativeEnd().y() <= 1.2;
++    }
++
++    private boolean canWalkOnBlock(Block block) {
++        if (isHydrophobic && block.id() == WATER_BLOCK_ID) {
++            return false;
++        }
++
++        return isFireResistant ||
++                (block.id() != FIRE_BLOCK_ID
++                        && block.id() != LAVA_BLOCK_ID
++                        && block.id() != MAGMA_BLOCK_ID
++                        && block.id() != CAMPFIRE_BLOCK_ID
++                        && block.id() != SOUL_CAMPFIRE_BLOCK_ID);
++    }
++
++    private Block getBlock(int x, int y, int z) {
++        return chunkCache.getBlock(x, y, z, Block.Getter.Condition.TYPE);
++    }
++
++    /**
++     * @param from        the node the pathfinding entity will be on before moving to the coordinates
++     * @param x           the x coordinates
++     * @param y           the y coordinates
++     * @param z           the z coordinates
++     * @param boundingBox the bounding box of the pathfinder entity
++     * @return a {@link MutablePos} containing the coordinates that the pathfinding entity must go to.
++     */
++    private @Nullable MutablePos collisionCheck(Node from, int x, int y, int z, double yBlockOffset, BoundingBox boundingBox) {
++        double yOffset = isColliding(x, y, z, boundingBox);
++
++        if (yOffset == -1) {
++            final int minX = floor(boundingBox.minX() + x + 0.5);
++            final int maxX = ceil(boundingBox.maxX() + x + 0.5);
++            final int minZ = floor(boundingBox.minZ() + z + 0.5);
++            final int maxZ = ceil(boundingBox.maxZ() + z + 0.5);
++
++            double yDiff = y + yBlockOffset - from.getEntityPosY();
++            for (int blockX = minX; blockX < maxX; blockX++) {
++                for (int blockZ = minZ; blockZ < maxZ; blockZ++) {
++                    if (blockX == x && blockZ == z) continue;
++                    double colliding = isColliding(blockX, y, blockZ, boundingBox);
++                    if (colliding != -1) {
++                        if(yDiff == 0) {
++                            PhysicsResult physicsResult = CollisionUtils.handlePhysics(
++                                    instance,
++                                    null,
++                                    boundingBox,
++                                    new Pos(blockX + 0.5, y + colliding, z + 0.5),
++                                    new Vec(blockX + 0.5, y + yBlockOffset + colliding, z + 0.5).sub(from.getEntityPosX(), from.getEntityPosY(), from.getEntityPosZ()),
++                                    null
++                            );
++                            if(physicsResult.collisionX() || physicsResult.collisionZ()) continue;
++                        }
++
++                        return mutablePos.withX(blockX + 0.5).withY(y + colliding).withZ(blockZ + 0.5);
++                    }
++                }
++            }
++        } else {
++            return mutablePos.withX(x + 0.5).withY(y + yOffset).withZ(z + 0.5);
++        }
++
++        return null;
++    }
++
++    /**
++     * Checks if the mob is colliding at a given point.
++     *
++     * @param x           the x coordinates
++     * @param y           the y coordinates
++     * @param z           the z coordinates
++     * @param boundingBox the bounding box of the mob
++     * @return -1 if the entity collides. Returns the Y offset to compensate for blocks like slabs/trapdoors/carpets...
++     */
++    private double isColliding(int x, int y, int z, BoundingBox boundingBox) {
++        double yOffset = -1;
++
++        final int minX = floor(boundingBox.minX() + x + 0.5);
++        final int minY = floor(boundingBox.minY() + y);
++        final int minZ = floor(boundingBox.minZ() + z + 0.5);
++        final int maxX = ceil(boundingBox.maxX() + x + 0.5);
++        final int maxY = ceil(boundingBox.maxY() + y);
++        final int maxZ = ceil(boundingBox.maxZ() + z + 0.5);
++
++        for (int blockX = minX; blockX < maxX; blockX++) {
++            for (int blockY = minY; blockY < maxY; blockY++) {
++                for (int blockZ = minZ; blockZ < maxZ; blockZ++) {
++                    Block block = chunkCache.getBlock(blockX, blockY, blockZ, Block.Getter.Condition.TYPE);
++                    if (block == null) return -1;
++
++                    if (blockY == minY && yOffset < block.registry().collisionShape().relativeEnd().y() && !isSolid(block)) {
++                        yOffset = block.registry().collisionShape().relativeEnd().y();
++                    }
++
++                    if (block.registry().collisionShape().intersectBox(mutablePos.with(x + 0.5, y + yOffset, z + 0.5).sub(blockX, blockY, blockZ), boundingBox)) {
++                        return -1;
++                    }
++                }
++            }
++        }
++
++        return yOffset;
++    }
++
++    /**
++     * Rounds down a double. This method is significantly faster than {@link Math#floor(double)} because it doesn't take into account
++     * IEE774's special cases and works by casting the number.
++     *
++     * @param number the double to floor
++     * @return the rounded down double
++     */
++    private static int floor(double number) {
++        return number < 0 ? (int) number - 1 : (int) number;
++    }
++
++    /**
++     * Rounds up a double. This method is significantly faster than {@link Math#floor(double)} because it doesn't take into account
++     * IEE774's special cases and works by casting the number.
++     *
++     * @param number the double to floor
++     * @return the rounded up double
++     */
++    public static int ceil(double number) {
++        return number < 0 ? (int) number : (int) number + 1;
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/pathfinder/nodes/Node.java b/src/main/java/net/defade/yokura/pathfinder/nodes/Node.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..a6545020b73f48d1a8f88339cc593cb8e7dbdce2
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/nodes/Node.java
+@@ -0,0 +1,116 @@
++package net.defade.yokura.pathfinder.nodes;
++
++import net.defade.yokura.pathfinder.evaluator.NodeTypes;
++
++public class Node {
++    private final int x;
++    private final int y;
++    private final int z;
++
++    private final NodeTypes blockType;
++
++    private final double entityPosX;
++    private final double entityPosY;
++    private final double entityPosZ;
++
++    private final double cost;
++    private final double costSoFar;
++    private Node cameFrom = null;
++
++    private final int hash;
++    private final long uniqueHash;
++
++    public Node(Node node, double costSoFar) {
++        this(node.x, node.y, node.z, node.entityPosX, node.entityPosY, node.entityPosZ, node.cost, costSoFar, node.blockType, node.hash, node.uniqueHash);
++        this.cameFrom = node.cameFrom;
++    }
++
++    public Node(int x, int y, int z, double entityPosX, double entityPosY, double entityPosZ, double cost, double costSoFar, NodeTypes blockType, int hash, long uniqueHash) {
++        this.x = x;
++        this.y = y;
++        this.z = z;
++        this.entityPosX = entityPosX;
++        this.entityPosY = entityPosY;
++        this.entityPosZ = entityPosZ;
++        this.cost = cost;
++        this.costSoFar = costSoFar;
++        this.blockType = blockType;
++        this.hash = hash;
++        this.uniqueHash = uniqueHash;
++    }
++
++    public int getX() {
++        return x;
++    }
++
++    public int getY() {
++        return y;
++    }
++
++    public int getZ() {
++        return z;
++    }
++
++    public double getEntityPosX() {
++        return entityPosX;
++    }
++
++    public double getEntityPosY() {
++        return entityPosY;
++    }
++
++    public double getEntityPosZ() {
++        return entityPosZ;
++    }
++
++    public NodeTypes getBlockType() {
++        return blockType;
++    }
++
++    public Node getCameFrom() {
++        return cameFrom;
++    }
++
++    public double getCost() {
++        return cost;
++    }
++
++    public double getCostSoFar() {
++        return costSoFar;
++    }
++
++    public void setCameFrom(Node cameFrom) {
++        this.cameFrom = cameFrom;
++    }
++
++    @Override
++    public boolean equals(Object o) {
++        if (this == o) return true;
++        if (o == null || getClass() != o.getClass()) return false;
++
++        return uniqueHash == ((Node) o).uniqueHash;
++    }
++
++    @Override
++    public int hashCode() {
++        return hash;
++    }
++
++    @Override
++    public String toString() {
++        return "Node{" +
++                "x=" + x +
++                ", y=" + y +
++                ", z=" + z +
++                ", cost=" + cost +
++                '}';
++    }
++
++    public static int hash(int x, int y, int z) {
++        return y & 255 | (x & 32767) << 8 | (z & 32767) << 24 | (x < 0 ? Integer.MIN_VALUE : 0) | (z < 0 ? '\u8000' : 0);
++    }
++
++    public static long uniqueHash(int x, int y, int z) {
++        return ((long) x) << 38 | (( z & 0x3ffffffL) << 12) | (y & 0b111111111111);
++    }
++}
+diff --git a/src/main/java/net/defade/yokura/pathfinder/nodes/NodeQueue.java b/src/main/java/net/defade/yokura/pathfinder/nodes/NodeQueue.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..f1de8858aaadb1ef70b3d5852ca0e5bb696bc31e
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/nodes/NodeQueue.java
+@@ -0,0 +1,57 @@
++package net.defade.yokura.pathfinder.nodes;
++
++public class NodeQueue {
++    private Node[] elements = new Node[0];
++
++    public void insert(Node node) {
++        if(elements.length == 0) {
++            elements = new Node[1];
++            elements[0] = node;
++            return;
++        }
++
++        int index = getIndexFor(node);
++
++        grow(index);
++        elements[index] = node;
++    }
++
++    public int getIndexFor(Node node) {
++        int index = 0;
++        for (Node element : elements) {
++            if(element.getCostSoFar() < node.getCostSoFar()) {
++                index++;
++            } else {
++                break;
++            }
++        }
++
++        return index;
++    }
++
++    public Node poll() {
++        Node node = elements[0];
++
++        Node[] newElements = new Node[elements.length - 1];
++        System.arraycopy(elements, 1, newElements, 0, elements.length - 1);
++
++        elements = newElements;
++        return node;
++    }
++
++    public boolean isEmpty() {
++        return elements.length == 0;
++    }
++
++    private void grow(int index) {
++        Node[] newElements = new Node[elements.length + 1];
++        System.arraycopy(elements, 0, newElements, 0, index);
++        System.arraycopy(elements, index, newElements, index + 1, elements.length - index);
++
++        elements = newElements;
++    }
++
++    public void clear() {
++        elements = new Node[0];
++    }
++}
+diff --git a/src/main/java/net/minestom/server/coordinate/Point.java b/src/main/java/net/minestom/server/coordinate/Point.java
+index 8427d2429c3d8646eeb731f1644b5926b3737bb2..cca97e1425610c85f0e803d045701169810804bc 100644
+--- a/src/main/java/net/minestom/server/coordinate/Point.java
++++ b/src/main/java/net/minestom/server/coordinate/Point.java
+@@ -12,7 +12,7 @@ import java.util.function.DoubleUnaryOperator;
+ /**
+  * Represents a 3D point.
+  */
+-public sealed interface Point permits Vec, Pos {
++public interface Point {
+ 
+     /**
+      * Gets the X coordinate.
+diff --git a/src/main/java/net/minestom/server/entity/EntityCreature.java b/src/main/java/net/minestom/server/entity/EntityCreature.java
+index fdbf64d3d2709f350960203dbe4900f1aefa2de3..10a9112885dcf28b7d8116071f1a20281093b8e7 100644
+--- a/src/main/java/net/minestom/server/entity/EntityCreature.java
++++ b/src/main/java/net/minestom/server/entity/EntityCreature.java
+@@ -1,10 +1,9 @@
+ package net.minestom.server.entity;
+ 
+-import com.extollit.gaming.ai.path.HydrazinePathFinder;
++import net.defade.yokura.pathfinder.Capabilities;
+ import net.minestom.server.coordinate.Pos;
+ import net.minestom.server.entity.ai.EntityAI;
+ import net.minestom.server.entity.ai.EntityAIGroup;
+-import net.minestom.server.entity.pathfinding.NavigableEntity;
+ import net.minestom.server.entity.pathfinding.Navigator;
+ import net.minestom.server.event.EventDispatcher;
+ import net.minestom.server.event.entity.EntityAttackEvent;
+@@ -20,12 +19,14 @@ import java.util.UUID;
+ import java.util.concurrent.CompletableFuture;
+ import java.util.concurrent.CopyOnWriteArraySet;
+ 
+-public class EntityCreature extends LivingEntity implements NavigableEntity, EntityAI {
++public class EntityCreature extends LivingEntity implements EntityAI {
+ 
+     private int removalAnimationDelay = 1000;
+ 
+     private final Set<EntityAIGroup> aiGroups = new CopyOnWriteArraySet<>();
+ 
++    private final Set<Capabilities> capabilities = new CopyOnWriteArraySet<>();
++
+     private final Navigator navigator = new Navigator(this);
+ 
+     private Entity target;
+@@ -56,8 +57,6 @@ public class EntityCreature extends LivingEntity implements NavigableEntity, Ent
+ 
+     @Override
+     public CompletableFuture<Void> setInstance(@NotNull Instance instance, @NotNull Pos spawnPosition) {
+-        this.navigator.setPathFinder(new HydrazinePathFinder(navigator.getPathingEntity(), instance.getInstanceSpace()));
+-
+         return super.setInstance(instance, spawnPosition);
+     }
+ 
+@@ -94,11 +93,21 @@ public class EntityCreature extends LivingEntity implements NavigableEntity, Ent
+         this.removalAnimationDelay = removalAnimationDelay;
+     }
+ 
++    @Override
++    public @NotNull Entity getEntity() {
++        return this;
++    }
++
+     @Override
+     public Collection<EntityAIGroup> getAIGroups() {
+         return aiGroups;
+     }
+ 
++    @Override
++    public Set<Capabilities> getCapabilities() {
++        return capabilities;
++    }
++
+     /**
+      * Gets the entity target.
+      *
+diff --git a/src/main/java/net/minestom/server/entity/ai/EntityAI.java b/src/main/java/net/minestom/server/entity/ai/EntityAI.java
+index a886352ace343e03da1dccd3f0de3e16a3dcadd5..e45ad0e968ac1a690f3f42c7ec3471469fb6c601 100644
+--- a/src/main/java/net/minestom/server/entity/ai/EntityAI.java
++++ b/src/main/java/net/minestom/server/entity/ai/EntityAI.java
+@@ -1,7 +1,12 @@
+ package net.minestom.server.entity.ai;
+ 
++import net.defade.yokura.pathfinder.Capabilities;
++import net.minestom.server.entity.Entity;
++import net.minestom.server.entity.pathfinding.Navigator;
++import org.jetbrains.annotations.NotNull;
+ import java.util.Collection;
+ import java.util.List;
++import java.util.Set;
+ 
+ /**
+  * Represents an entity which can contain
+@@ -12,6 +17,9 @@ import java.util.List;
+  * but multiple groups are independent of each other, so each of them can have own goal selector running.
+  */
+ public interface EntityAI {
++    @NotNull Entity getEntity();
++
++    @NotNull Navigator getNavigator();
+ 
+     /**
+      * Gets the AI groups of this entity.
+@@ -48,4 +56,15 @@ public interface EntityAI {
+         getAIGroups().forEach(group -> group.tick(time));
+     }
+ 
++    /**
++     * @return a {@link Set} of {@link Capabilities} that the entity has.
++     */
++    Set<Capabilities> getCapabilities();
++
++    /**
++     * @return the speed in blocks/s of the entity.
++     */
++    default double getMovementSpeed() {
++        return 0.25;
++    }
+ }
+diff --git a/src/main/java/net/minestom/server/entity/fakeplayer/FakePlayer.java b/src/main/java/net/minestom/server/entity/fakeplayer/FakePlayer.java
+index 3d1a30959acfd74f61272c2db139f1189bec0900..a446423f572944e3c8ec781eb355eb4081b7841b 100644
+--- a/src/main/java/net/minestom/server/entity/fakeplayer/FakePlayer.java
++++ b/src/main/java/net/minestom/server/entity/fakeplayer/FakePlayer.java
+@@ -1,10 +1,12 @@
+ package net.minestom.server.entity.fakeplayer;
+ 
+-import com.extollit.gaming.ai.path.HydrazinePathFinder;
++import net.defade.yokura.pathfinder.Capabilities;
+ import net.minestom.server.MinecraftServer;
+ import net.minestom.server.coordinate.Pos;
++import net.minestom.server.entity.Entity;
+ import net.minestom.server.entity.Player;
+-import net.minestom.server.entity.pathfinding.NavigableEntity;
++import net.minestom.server.entity.ai.EntityAI;
++import net.minestom.server.entity.ai.EntityAIGroup;
+ import net.minestom.server.entity.pathfinding.Navigator;
+ import net.minestom.server.event.EventListener;
+ import net.minestom.server.event.player.PlayerSpawnEvent;
+@@ -16,8 +18,11 @@ import net.minestom.server.utils.time.TimeUnit;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ 
++import java.util.Collection;
++import java.util.Set;
+ import java.util.UUID;
+ import java.util.concurrent.CompletableFuture;
++import java.util.concurrent.CopyOnWriteArraySet;
+ import java.util.function.Consumer;
+ 
+ /**
+@@ -28,7 +33,7 @@ import java.util.function.Consumer;
+  * You can create one using {@link #initPlayer(UUID, String, Consumer)}. Be aware that this really behave exactly like a player
+  * and this is a feature not a bug, you will need to check at some place if the player is a fake one or not (instanceof) if you want to change it.
+  */
+-public class FakePlayer extends Player implements NavigableEntity {
++public class FakePlayer extends Player implements EntityAI {
+ 
+     private static final ConnectionManager CONNECTION_MANAGER = MinecraftServer.getConnectionManager();
+ 
+@@ -36,6 +41,8 @@ public class FakePlayer extends Player implements NavigableEntity {
+     private final FakePlayerController fakePlayerController;
+ 
+     private final Navigator navigator = new Navigator(this);
++    private final Set<EntityAIGroup> aiGroups = new CopyOnWriteArraySet<>();
++    private final Set<Capabilities> capabilities = new CopyOnWriteArraySet<>();
+ 
+     /**
+      * Initializes a new {@link FakePlayer} with the given {@code uuid}, {@code username} and {@code option}'s.
+@@ -117,14 +124,16 @@ public class FakePlayer extends Player implements NavigableEntity {
+     @Override
+     public void update(long time) {
+         super.update(time);
++
++        // AI
++        aiTick(time);
++
+         // Path finding
+         this.navigator.tick();
+     }
+ 
+     @Override
+     public CompletableFuture<Void> setInstance(@NotNull Instance instance, @NotNull Pos spawnPosition) {
+-        this.navigator.setPathFinder(new HydrazinePathFinder(navigator.getPathingEntity(), instance.getInstanceSpace()));
+-
+         return super.setInstance(instance, spawnPosition);
+     }
+ 
+@@ -144,12 +153,27 @@ public class FakePlayer extends Player implements NavigableEntity {
+         handleTabList(connection);
+     }
+ 
++    @Override
++    public @NotNull Entity getEntity() {
++        return this;
++    }
++
+     @NotNull
+     @Override
+     public Navigator getNavigator() {
+         return navigator;
+     }
+ 
++    @Override
++    public Collection<EntityAIGroup> getAIGroups() {
++        return aiGroups;
++    }
++
++    @Override
++    public Set<Capabilities> getCapabilities() {
++        return capabilities;
++    }
++
+     private void handleTabList(PlayerConnection connection) {
+         if (!option.isInTabList()) {
+             // Remove from tab-list
+diff --git a/src/main/java/net/minestom/server/entity/pathfinding/NavigableEntity.java b/src/main/java/net/minestom/server/entity/pathfinding/NavigableEntity.java
+deleted file mode 100644
+index f6b07015838e04e4348cb7d8ae96d80f9db7d163..0000000000000000000000000000000000000000
+--- a/src/main/java/net/minestom/server/entity/pathfinding/NavigableEntity.java
++++ /dev/null
+@@ -1,12 +0,0 @@
+-package net.minestom.server.entity.pathfinding;
+-
+-import org.jetbrains.annotations.NotNull;
+-
+-/**
+- * Represents an entity which can use the pathfinder.
+- * <p>
+- * All pathfinder methods are available with {@link #getNavigator()}.
+- */
+-public interface NavigableEntity {
+-    @NotNull Navigator getNavigator();
+-}
+diff --git a/src/main/java/net/minestom/server/entity/pathfinding/Navigator.java b/src/main/java/net/minestom/server/entity/pathfinding/Navigator.java
+index 3ac3b48e423cca0cc1fe9a5bb7511eb3a57196cd..83c871539c78cb6e47be8db8cbb1fb777f21b774 100644
+--- a/src/main/java/net/minestom/server/entity/pathfinding/Navigator.java
++++ b/src/main/java/net/minestom/server/entity/pathfinding/Navigator.java
+@@ -1,8 +1,8 @@
+ package net.minestom.server.entity.pathfinding;
+ 
+-import com.extollit.gaming.ai.path.HydrazinePathFinder;
+-import com.extollit.gaming.ai.path.PathOptions;
+-import com.extollit.gaming.ai.path.model.IPath;
++import net.defade.yokura.pathfinder.LookController;
++import net.defade.yokura.pathfinder.Path;
++import net.defade.yokura.pathfinder.PathFinder;
+ import net.minestom.server.collision.CollisionUtils;
+ import net.minestom.server.collision.PhysicsResult;
+ import net.minestom.server.coordinate.Point;
+@@ -10,6 +10,7 @@ import net.minestom.server.coordinate.Pos;
+ import net.minestom.server.coordinate.Vec;
+ import net.minestom.server.entity.Entity;
+ import net.minestom.server.entity.LivingEntity;
++import net.minestom.server.entity.ai.EntityAI;
+ import net.minestom.server.instance.Chunk;
+ import net.minestom.server.instance.Instance;
+ import net.minestom.server.instance.WorldBorder;
+@@ -18,22 +19,20 @@ import net.minestom.server.utils.position.PositionUtils;
+ import org.jetbrains.annotations.ApiStatus;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+-
+-// TODO all pathfinding requests could be processed in another thread
++import java.util.concurrent.CompletableFuture;
+ 
+ /**
+- * Necessary object for all {@link NavigableEntity}.
++ * Necessary object for all {@link EntityAI}.
+  */
+ public final class Navigator {
+-    private final PFPathingEntity pathingEntity;
+-    private HydrazinePathFinder pathFinder;
++    private final PathFinder pathFinder;
+     private Point pathPosition;
+ 
+     private final Entity entity;
+ 
+-    public Navigator(@NotNull Entity entity) {
+-        this.entity = entity;
+-        this.pathingEntity = new PFPathingEntity(this);
++    public Navigator(@NotNull EntityAI entity) {
++        this.pathFinder = new PathFinder(this, entity);
++        this.entity = entity.getEntity();
+     }
+ 
+     /**
+@@ -84,54 +83,46 @@ public final class Navigator {
+      *                   if false then this method is more likely to return immediately
+      * @return true if a path has been found
+      */
+-    public synchronized boolean setPathTo(@Nullable Point point, boolean bestEffort) {
++    public synchronized CompletableFuture<Path> setPathTo(@Nullable Point point, boolean bestEffort) {
+         if (point != null && pathPosition != null && point.samePoint(pathPosition)) {
+             // Tried to set path to the same target position
+-            return false;
++            return CompletableFuture.completedFuture(Path.EMPTY_PATH);
+         }
+         final Instance instance = entity.getInstance();
+         if (pathFinder == null) {
+             // Unexpected error
+-            return false;
++            return CompletableFuture.completedFuture(Path.EMPTY_PATH);
+         }
++
+         this.pathFinder.reset();
+         if (point == null) {
+-            return false;
++            return CompletableFuture.completedFuture(Path.EMPTY_PATH);
+         }
+         // Can't path with a null instance.
+         if (instance == null) {
+-            return false;
++            return CompletableFuture.completedFuture(Path.EMPTY_PATH);
+         }
+         // Can't path outside the world border
+         final WorldBorder worldBorder = instance.getWorldBorder();
+         if (!worldBorder.isInside(point)) {
+-            return false;
++            return CompletableFuture.completedFuture(Path.EMPTY_PATH);
+         }
+         // Can't path in an unloaded chunk
+         final Chunk chunk = instance.getChunkAt(point);
+         if (!ChunkUtils.isLoaded(chunk)) {
+-            return false;
++            return CompletableFuture.completedFuture(Path.EMPTY_PATH);
+         }
+ 
+-        final PathOptions pathOptions = new PathOptions()
+-                .targetingStrategy(bestEffort ? PathOptions.TargetingStrategy.gravitySnap :
+-                        PathOptions.TargetingStrategy.none);
+-        final IPath path = pathFinder.initiatePathTo(
+-                point.x(),
+-                point.y(),
+-                point.z(),
+-                pathOptions);
+-
+-        final boolean success = path != null;
+-        this.pathPosition = success ? point : null;
+-        return success;
++        this.pathPosition = point;
++        return pathFinder.getPath(entity.getPosition(), point, bestEffort);
+     }
+ 
+     /**
+      * @see #setPathTo(Point, boolean) with {@code bestEffort} sets to {@code true}.
+      */
+     public boolean setPathTo(@Nullable Point position) {
+-        return setPathTo(position, true);
++        setPathTo(position, true);
++        return true;
+     }
+ 
+     @ApiStatus.Internal
+@@ -139,9 +130,8 @@ public final class Navigator {
+         if (pathPosition == null) return; // No path
+         if (entity instanceof LivingEntity && ((LivingEntity) entity).isDead())
+             return; // No pathfinding tick for dead entities
+-        if (pathFinder.updatePathFor(pathingEntity) == null) {
+-            reset();
+-        }
++
++        pathFinder.tick();
+     }
+ 
+     /**
+@@ -157,18 +147,7 @@ public final class Navigator {
+         return entity;
+     }
+ 
+-    @ApiStatus.Internal
+-    public @NotNull PFPathingEntity getPathingEntity() {
+-        return pathingEntity;
+-    }
+-
+-    @ApiStatus.Internal
+-    public void setPathFinder(@Nullable HydrazinePathFinder pathFinder) {
+-        this.pathFinder = pathFinder;
+-    }
+-
+-    private void reset() {
+-        this.pathPosition = null;
+-        this.pathFinder.reset();
++    public void setLookController(@Nullable LookController lookController) {
++        this.pathFinder.setLookController(lookController);
+     }
+ }
+diff --git a/src/main/java/net/minestom/server/entity/pathfinding/PFBlock.java b/src/main/java/net/minestom/server/entity/pathfinding/PFBlock.java
+deleted file mode 100644
+index 77c63f26f76b4cf0904bab3f731df3e86950db22..0000000000000000000000000000000000000000
+--- a/src/main/java/net/minestom/server/entity/pathfinding/PFBlock.java
++++ /dev/null
+@@ -1,100 +0,0 @@
+-package net.minestom.server.entity.pathfinding;
+-
+-import com.extollit.gaming.ai.path.model.IBlockDescription;
+-import com.extollit.gaming.ai.path.model.IBlockObject;
+-import com.extollit.linalg.immutable.AxisAlignedBBox;
+-import net.minestom.server.collision.Shape;
+-import net.minestom.server.instance.block.Block;
+-import org.jetbrains.annotations.ApiStatus;
+-import org.jetbrains.annotations.NotNull;
+-import space.vectrix.flare.fastutil.Short2ObjectSyncMap;
+-
+-@ApiStatus.Internal
+-public final class PFBlock implements IBlockDescription, IBlockObject {
+-    private static final Short2ObjectSyncMap<PFBlock> BLOCK_DESCRIPTION_MAP = Short2ObjectSyncMap.hashmap();
+-
+-    /**
+-     * Gets the {@link PFBlock} linked to the block state id.
+-     * <p>
+-     * Cache the result if it is not already.
+-     *
+-     * @param block the block
+-     * @return the {@link PFBlock} linked to {@code blockStateId}
+-     */
+-    public static @NotNull PFBlock get(@NotNull Block block) {
+-        return BLOCK_DESCRIPTION_MAP.computeIfAbsent(block.stateId(), state -> new PFBlock(block));
+-    }
+-
+-    private final Block block;
+-
+-    PFBlock(Block block) {
+-        this.block = block;
+-    }
+-
+-    @Override
+-    public AxisAlignedBBox bounds() {
+-        Shape shape = this.block.registry().collisionShape();
+-        return new AxisAlignedBBox(
+-                shape.relativeStart().x(), shape.relativeStart().y(), shape.relativeStart().z(),
+-                shape.relativeEnd().x(), shape.relativeEnd().y(), shape.relativeEnd().z()
+-        );
+-    }
+-
+-    @Override
+-    public boolean isFenceLike() {
+-        // TODO: Use Hitbox
+-        // Return fences, fencegates and walls.
+-        // It just so happens that their namespace IDs contain "fence".
+-        if (block.namespace().asString().contains("fence")) {
+-            return true;
+-        }
+-        // Return all walls
+-        // It just so happens that their namespace IDs all end with "wall".
+-        return block.namespace().asString().endsWith("wall");
+-    }
+-
+-    @Override
+-    public boolean isClimbable() {
+-        // Return ladders and vines (including weeping and twisting vines)
+-        // Note that no other Namespace IDs contain "vine" except vines.
+-        return block.compare(Block.LADDER) || block.namespace().asString().contains("vine");
+-    }
+-
+-    @Override
+-    public boolean isDoor() {
+-        // Return all normal doors and trap doors.
+-        // It just so happens that their namespace IDs all end with "door".
+-        return block.namespace().asString().endsWith("door");
+-    }
+-
+-    @Override
+-    public boolean isIntractable() {
+-        // TODO: Interactability of blocks.
+-        return false;
+-    }
+-
+-    @Override
+-    public boolean isImpeding() {
+-        return block.isSolid();
+-    }
+-
+-    @Override
+-    public boolean isFullyBounded() {
+-        Shape shape = block.registry().collisionShape();
+-        return shape.relativeStart().isZero()
+-                && shape.relativeEnd().x() == 1.0d
+-                && shape.relativeEnd().y() == 1.0d
+-                && shape.relativeEnd().z() == 1.0d;
+-    }
+-
+-    @Override
+-    public boolean isLiquid() {
+-        return block.isLiquid();
+-    }
+-
+-    @Override
+-    public boolean isIncinerating() {
+-        return block == Block.LAVA || block == Block.FIRE || block == Block.SOUL_FIRE;
+-    }
+-
+-}
+diff --git a/src/main/java/net/minestom/server/entity/pathfinding/PFColumnarSpace.java b/src/main/java/net/minestom/server/entity/pathfinding/PFColumnarSpace.java
+deleted file mode 100644
+index 3ef7e6e005a453d059542ceaf53c0f5099d7177d..0000000000000000000000000000000000000000
+--- a/src/main/java/net/minestom/server/entity/pathfinding/PFColumnarSpace.java
++++ /dev/null
+@@ -1,42 +0,0 @@
+-package net.minestom.server.entity.pathfinding;
+-
+-import com.extollit.gaming.ai.path.model.ColumnarOcclusionFieldList;
+-import com.extollit.gaming.ai.path.model.IBlockDescription;
+-import com.extollit.gaming.ai.path.model.IColumnarSpace;
+-import com.extollit.gaming.ai.path.model.IInstanceSpace;
+-import net.minestom.server.instance.Chunk;
+-import net.minestom.server.instance.block.Block;
+-import org.jetbrains.annotations.ApiStatus;
+-
+-@ApiStatus.Internal
+-public final class PFColumnarSpace implements IColumnarSpace {
+-    private final ColumnarOcclusionFieldList occlusionFieldList = new ColumnarOcclusionFieldList(this);
+-    private final PFInstanceSpace instanceSpace;
+-    private final Chunk chunk;
+-
+-    PFColumnarSpace(PFInstanceSpace instanceSpace, Chunk chunk) {
+-        this.instanceSpace = instanceSpace;
+-        this.chunk = chunk;
+-    }
+-
+-    @Override
+-    public IBlockDescription blockAt(int x, int y, int z) {
+-        final Block block = chunk.getBlock(x, y, z);
+-        return PFBlock.get(block);
+-    }
+-
+-    @Override
+-    public int metaDataAt(int x, int y, int z) {
+-        return 0;
+-    }
+-
+-    @Override
+-    public ColumnarOcclusionFieldList occlusionFields() {
+-        return occlusionFieldList;
+-    }
+-
+-    @Override
+-    public IInstanceSpace instance() {
+-        return instanceSpace;
+-    }
+-}
+diff --git a/src/main/java/net/minestom/server/entity/pathfinding/PFInstanceSpace.java b/src/main/java/net/minestom/server/entity/pathfinding/PFInstanceSpace.java
+deleted file mode 100644
+index d59126f9c8e1dec71331bd6382afa585c2a8a34b..0000000000000000000000000000000000000000
+--- a/src/main/java/net/minestom/server/entity/pathfinding/PFInstanceSpace.java
++++ /dev/null
+@@ -1,41 +0,0 @@
+-package net.minestom.server.entity.pathfinding;
+-
+-import com.extollit.gaming.ai.path.model.IBlockObject;
+-import com.extollit.gaming.ai.path.model.IColumnarSpace;
+-import com.extollit.gaming.ai.path.model.IInstanceSpace;
+-import net.minestom.server.instance.Chunk;
+-import net.minestom.server.instance.Instance;
+-import net.minestom.server.instance.block.Block;
+-
+-import java.util.Map;
+-import java.util.concurrent.ConcurrentHashMap;
+-
+-public final class PFInstanceSpace implements IInstanceSpace {
+-    private final Instance instance;
+-    private final Map<Chunk, PFColumnarSpace> chunkSpaceMap = new ConcurrentHashMap<>();
+-
+-    public PFInstanceSpace(Instance instance) {
+-        this.instance = instance;
+-    }
+-
+-    @Override
+-    public IBlockObject blockObjectAt(int x, int y, int z) {
+-        final Block block = instance.getBlock(x, y, z);
+-        return PFBlock.get(block);
+-    }
+-
+-    @Override
+-    public IColumnarSpace columnarSpaceAt(int cx, int cz) {
+-        final Chunk chunk = instance.getChunk(cx, cz);
+-        if (chunk == null) return null;
+-        return chunkSpaceMap.computeIfAbsent(chunk, c -> {
+-            final PFColumnarSpace cs = new PFColumnarSpace(this, c);
+-            c.setColumnarSpace(cs);
+-            return cs;
+-        });
+-    }
+-
+-    public Instance getInstance() {
+-        return instance;
+-    }
+-}
+diff --git a/src/main/java/net/minestom/server/entity/pathfinding/PFPathingEntity.java b/src/main/java/net/minestom/server/entity/pathfinding/PFPathingEntity.java
+deleted file mode 100644
+index a8e6a7422af7479d057f091a7189c557dd05100b..0000000000000000000000000000000000000000
+--- a/src/main/java/net/minestom/server/entity/pathfinding/PFPathingEntity.java
++++ /dev/null
+@@ -1,226 +0,0 @@
+-package net.minestom.server.entity.pathfinding;
+-
+-import com.extollit.gaming.ai.path.model.Gravitation;
+-import com.extollit.gaming.ai.path.model.IPathingEntity;
+-import com.extollit.gaming.ai.path.model.Passibility;
+-import com.extollit.linalg.immutable.Vec3d;
+-import net.minestom.server.attribute.Attribute;
+-import net.minestom.server.coordinate.Point;
+-import net.minestom.server.coordinate.Vec;
+-import net.minestom.server.entity.Entity;
+-import net.minestom.server.entity.LivingEntity;
+-import org.jetbrains.annotations.ApiStatus;
+-import org.jetbrains.annotations.NotNull;
+-
+-@ApiStatus.Internal
+-public final class PFPathingEntity implements IPathingEntity {
+-    private final Navigator navigator;
+-    private final Entity entity;
+-
+-    private float searchRange;
+-
+-    // Capacities
+-    private boolean fireResistant;
+-    private boolean cautious;
+-    private boolean climber;
+-    private boolean swimmer;
+-    private boolean aquatic;
+-    private boolean avian;
+-    private boolean aquaphobic;
+-    private boolean avoidsDoorways;
+-    private boolean opensDoors;
+-
+-    public PFPathingEntity(Navigator navigator) {
+-        this.navigator = navigator;
+-        this.entity = navigator.getEntity();
+-
+-        this.searchRange = getAttributeValue(Attribute.FOLLOW_RANGE);
+-    }
+-
+-    @Override
+-    public int age() {
+-        return (int) entity.getAliveTicks();
+-    }
+-
+-    @Override
+-    public boolean bound() {
+-        return entity.hasVelocity();
+-    }
+-
+-    @Override
+-    public float searchRange() {
+-        return searchRange;
+-    }
+-
+-    /**
+-     * Changes the search range of the entity
+-     *
+-     * @param searchRange the new entity's search range
+-     */
+-    public void setSearchRange(float searchRange) {
+-        this.searchRange = searchRange;
+-    }
+-
+-    public boolean isFireResistant() {
+-        return fireResistant;
+-    }
+-
+-    public void setFireResistant(boolean fireResistant) {
+-        this.fireResistant = fireResistant;
+-    }
+-
+-    public boolean isCautious() {
+-        return cautious;
+-    }
+-
+-    public void setCautious(boolean cautious) {
+-        this.cautious = cautious;
+-    }
+-
+-    public boolean isClimber() {
+-        return climber;
+-    }
+-
+-    public void setClimber(boolean climber) {
+-        this.climber = climber;
+-    }
+-
+-    public boolean isSwimmer() {
+-        return swimmer;
+-    }
+-
+-    public void setSwimmer(boolean swimmer) {
+-        this.swimmer = swimmer;
+-    }
+-
+-    public boolean isAquatic() {
+-        return aquatic;
+-    }
+-
+-    public void setAquatic(boolean aquatic) {
+-        this.aquatic = aquatic;
+-    }
+-
+-    public boolean isAvian() {
+-        return avian;
+-    }
+-
+-    public void setAvian(boolean avian) {
+-        this.avian = avian;
+-    }
+-
+-    public boolean isAquaphobic() {
+-        return aquaphobic;
+-    }
+-
+-    public void setAquaphobic(boolean aquaphobic) {
+-        this.aquaphobic = aquaphobic;
+-    }
+-
+-    public boolean isAvoidsDoorways() {
+-        return avoidsDoorways;
+-    }
+-
+-    public void setAvoidsDoorways(boolean avoidsDoorways) {
+-        this.avoidsDoorways = avoidsDoorways;
+-    }
+-
+-    public boolean isOpensDoors() {
+-        return opensDoors;
+-    }
+-
+-    public void setOpensDoors(boolean opensDoors) {
+-        this.opensDoors = opensDoors;
+-    }
+-
+-    @Override
+-    public Capabilities capabilities() {
+-        return new Capabilities() {
+-            @Override
+-            public float speed() {
+-                return getAttributeValue(Attribute.MOVEMENT_SPEED);
+-            }
+-
+-            @Override
+-            public boolean fireResistant() {
+-                return fireResistant;
+-            }
+-
+-            @Override
+-            public boolean cautious() {
+-                return cautious;
+-            }
+-
+-            @Override
+-            public boolean climber() {
+-                return climber;
+-            }
+-
+-            @Override
+-            public boolean swimmer() {
+-                return swimmer;
+-            }
+-
+-            @Override
+-            public boolean aquatic() {
+-                return aquatic;
+-            }
+-
+-            @Override
+-            public boolean avian() {
+-                return avian;
+-            }
+-
+-            @Override
+-            public boolean aquaphobic() {
+-                return aquaphobic;
+-            }
+-
+-            @Override
+-            public boolean avoidsDoorways() {
+-                return avoidsDoorways;
+-            }
+-
+-            @Override
+-            public boolean opensDoors() {
+-                return opensDoors;
+-            }
+-        };
+-    }
+-
+-    @Override
+-    public void moveTo(Vec3d position, Passibility passibility, Gravitation gravitation) {
+-        final Point targetPosition = new Vec(position.x, position.y, position.z);
+-        this.navigator.moveTowards(targetPosition, getAttributeValue(Attribute.MOVEMENT_SPEED));
+-        final double entityY = entity.getPosition().y() + 0.00001D; // After any negative y movement, entities will always be extremely
+-                                                                    // slightly below floor level. This +0.00001D is here to offset this
+-                                                                    // error and stop the entity from permanently jumping.
+-
+-        if (entityY < targetPosition.y()) {
+-            this.navigator.jump(1);
+-        }
+-    }
+-
+-    @Override
+-    public Vec3d coordinates() {
+-        final var position = entity.getPosition();
+-        return new Vec3d(position.x(), position.y(), position.z());
+-    }
+-
+-    @Override
+-    public float width() {
+-        return (float) entity.getBoundingBox().width();
+-    }
+-
+-    @Override
+-    public float height() {
+-        return (float) entity.getBoundingBox().height();
+-    }
+-
+-    private float getAttributeValue(@NotNull Attribute attribute) {
+-        if (entity instanceof LivingEntity) {
+-            return ((LivingEntity) entity).getAttributeValue(attribute);
+-        }
+-        return 0f;
+-    }
+-}
+diff --git a/src/main/java/net/minestom/server/instance/Chunk.java b/src/main/java/net/minestom/server/instance/Chunk.java
+index f3a956621d034160679817830519facd96378518..60455420f731598d9b0bb61aa083be1499fb706e 100644
+--- a/src/main/java/net/minestom/server/instance/Chunk.java
++++ b/src/main/java/net/minestom/server/instance/Chunk.java
+@@ -6,7 +6,6 @@ import net.minestom.server.Viewable;
+ import net.minestom.server.coordinate.Point;
+ import net.minestom.server.coordinate.Vec;
+ import net.minestom.server.entity.Player;
+-import net.minestom.server.entity.pathfinding.PFColumnarSpace;
+ import net.minestom.server.instance.block.Block;
+ import net.minestom.server.network.packet.server.play.ChunkDataPacket;
+ import net.minestom.server.snapshot.Snapshotable;
+@@ -52,9 +51,6 @@ public abstract class Chunk implements Block.Getter, Block.Setter, Biome.Getter,
+     protected volatile boolean loaded = true;
+     private final ChunkView viewers;
+ 
+-    // Path finding
+-    protected PFColumnarSpace columnarSpace;
+-
+     // Data
+     private final TagHandler tagHandler = TagHandler.newHandler();
+ 
+@@ -245,15 +241,6 @@ public abstract class Chunk implements Block.Getter, Block.Setter, Biome.Getter,
+         this.readOnly = readOnly;
+     }
+ 
+-    /**
+-     * Changes this chunk columnar space.
+-     *
+-     * @param columnarSpace the new columnar space
+-     */
+-    public void setColumnarSpace(PFColumnarSpace columnarSpace) {
+-        this.columnarSpace = columnarSpace;
+-    }
+-
+     /**
+      * Used to verify if the chunk should still be kept in memory.
+      *
+diff --git a/src/main/java/net/minestom/server/instance/DynamicChunk.java b/src/main/java/net/minestom/server/instance/DynamicChunk.java
+index a3fc44202f5c400d5e2d05e464ba85624c7a4927..c68ea7d20bbfb0a8f3f058d0ceeb3d53f46c3e80 100644
+--- a/src/main/java/net/minestom/server/instance/DynamicChunk.java
++++ b/src/main/java/net/minestom/server/instance/DynamicChunk.java
+@@ -1,12 +1,10 @@
+ package net.minestom.server.instance;
+ 
+-import com.extollit.gaming.ai.path.model.ColumnarOcclusionFieldList;
+ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+ import net.minestom.server.MinecraftServer;
+ import net.minestom.server.coordinate.Point;
+ import net.minestom.server.entity.Entity;
+ import net.minestom.server.entity.Player;
+-import net.minestom.server.entity.pathfinding.PFBlock;
+ import net.minestom.server.instance.block.Block;
+ import net.minestom.server.instance.block.BlockHandler;
+ import net.minestom.server.network.packet.server.CachedPacket;
+@@ -74,12 +72,7 @@ public class DynamicChunk extends Chunk {
+         this.lastChange = System.currentTimeMillis();
+         this.chunkCache.invalidate();
+         this.lightCache.invalidate();
+-        // Update pathfinder
+-        if (columnarSpace != null) {
+-            final ColumnarOcclusionFieldList columnarOcclusionFieldList = columnarSpace.occlusionFields();
+-            final var blockDescription = PFBlock.get(block);
+-            columnarOcclusionFieldList.onBlockChanged(x, y, z, blockDescription, 0);
+-        }
++
+         Section section = getSectionAt(y);
+         section.blockPalette()
+                 .set(toSectionRelativeCoordinate(x), toSectionRelativeCoordinate(y), toSectionRelativeCoordinate(z), block.stateId());
+diff --git a/src/main/java/net/minestom/server/instance/Instance.java b/src/main/java/net/minestom/server/instance/Instance.java
+index 090a88b77250dc71cefdedf0062d594563e31094..0142de2b9ab357044c47437443903302fe2a0b1a 100644
+--- a/src/main/java/net/minestom/server/instance/Instance.java
++++ b/src/main/java/net/minestom/server/instance/Instance.java
+@@ -12,7 +12,6 @@ import net.minestom.server.entity.Entity;
+ import net.minestom.server.entity.EntityCreature;
+ import net.minestom.server.entity.ExperienceOrb;
+ import net.minestom.server.entity.Player;
+-import net.minestom.server.entity.pathfinding.PFInstanceSpace;
+ import net.minestom.server.event.EventDispatcher;
+ import net.minestom.server.event.EventFilter;
+ import net.minestom.server.event.EventHandler;
+@@ -96,9 +95,6 @@ public abstract class Instance implements Block.Getter, Block.Setter,
+     // the explosion supplier
+     private ExplosionSupplier explosionSupplier;
+ 
+-    // Pathfinder
+-    private final PFInstanceSpace instanceSpace = new PFInstanceSpace(this);
+-
+     // Adventure
+     private final Pointers pointers;
+ 
+@@ -693,18 +689,6 @@ public abstract class Instance implements Block.Getter, Block.Setter,
+         this.explosionSupplier = supplier;
+     }
+ 
+-    /**
+-     * Gets the instance space.
+-     * <p>
+-     * Used by the pathfinder for entities.
+-     *
+-     * @return the instance space
+-     */
+-    @ApiStatus.Internal
+-    public @NotNull PFInstanceSpace getInstanceSpace() {
+-        return instanceSpace;
+-    }
+-
+     @Override
+     public @NotNull Pointers pointers() {
+         return this.pointers;
