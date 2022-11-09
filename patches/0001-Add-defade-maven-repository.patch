@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hygon <hygon806@gmail.com>
 Date: Mon, 22 Aug 2022 22:53:52 +0200
-Subject: [PATCH] Publish to defade repo
+Subject: [PATCH] Add defade maven repository
 
 
 diff --git a/build-logic/src/main/kotlin/minestom.publishing-conventions.gradle.kts b/build-logic/src/main/kotlin/minestom.publishing-conventions.gradle.kts
@@ -81,3 +81,18 @@ index 2230bb02892d10d6756722105337ae6434cc8a35..a2d24392f10dc181932f4ae9e6699ed1
  include("code-generators")
  include("jmh-benchmarks")
  include("jcstress-tests")
+diff --git a/testing/build.gradle.kts b/testing/build.gradle.kts
+index 4ea0e6bc68bea05e0345261a861fc9fcae9461fe..7a520c78af35311bdaeb37405c7b23ee3a0b4ad0 100644
+--- a/testing/build.gradle.kts
++++ b/testing/build.gradle.kts
+@@ -20,6 +20,10 @@ version = "1.0"
+ 
+ repositories {
+     mavenCentral()
++    maven("https://repo.defade.net/defade") {
++        name = "defade"
++        credentials(PasswordCredentials::class)
++    }
+     maven(url = "https://jitpack.io")
+ }
+ 
