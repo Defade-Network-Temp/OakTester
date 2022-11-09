@@ -39,27 +39,28 @@ index fc29713c8779f91dc400c273177dd4418e7d6abd..d466005e4b186fcffe5a27f650a7b6ba
  jetbrainsAnnotations = { group = "org.jetbrains", name = "annotations", version.ref = "jetbrainsAnnotations" }
 diff --git a/src/main/java/net/defade/yokura/pathfinder/Capabilities.java b/src/main/java/net/defade/yokura/pathfinder/Capabilities.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..65d35540ee6fe8186b310eaea555106bf4eb6d98
+index 0000000000000000000000000000000000000000..8953da0bf376279855fe7b1cb6f8caf6823ef5ef
 --- /dev/null
 +++ b/src/main/java/net/defade/yokura/pathfinder/Capabilities.java
-@@ -0,0 +1,6 @@
+@@ -0,0 +1,7 @@
 +package net.defade.yokura.pathfinder;
 +
 +public enum Capabilities {
 +    FIRE_RESISTANT,
-+    HYDROPHOBIC
++    HYDROPHOBIC,
++    FLYING
 +}
 \ No newline at end of file
 diff --git a/src/main/java/net/defade/yokura/pathfinder/Frontier.java b/src/main/java/net/defade/yokura/pathfinder/Frontier.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..0d7b056eb5ad437f9cd7ca538c843b1baa606e3f
+index 0000000000000000000000000000000000000000..29bef88e3f803272638f53594e2665874161a263
 --- /dev/null
 +++ b/src/main/java/net/defade/yokura/pathfinder/Frontier.java
 @@ -0,0 +1,84 @@
 +package net.defade.yokura.pathfinder;
 +
 +import it.unimi.dsi.fastutil.objects.Object2DoubleOpenHashMap;
-+import net.defade.yokura.pathfinder.evaluator.Evaluator;
++import net.defade.yokura.pathfinder.evaluator.NodeEvaluator;
 +import net.defade.yokura.pathfinder.nodes.Node;
 +import net.defade.yokura.pathfinder.nodes.NodeQueue;
 +import net.minestom.server.coordinate.Point;
@@ -67,12 +68,12 @@ index 0000000000000000000000000000000000000000..0d7b056eb5ad437f9cd7ca538c843b1b
 +import java.util.Map;
 +
 +class Frontier {
-+    private final Evaluator evaluator;
++    private final NodeEvaluator evaluator;
 +
 +    private final NodeQueue nodeQueue = new NodeQueue();
 +    private final Map<Node, Double> costSoFar = new Object2DoubleOpenHashMap<>();
 +
-+    public Frontier(Evaluator evaluator) {
++    public Frontier(NodeEvaluator evaluator) {
 +        this.evaluator = evaluator;
 +    }
 +
@@ -89,7 +90,7 @@ index 0000000000000000000000000000000000000000..0d7b056eb5ad437f9cd7ca538c843b1b
 +        costSoFar.put(startNode, 0D);
 +        nodeQueue.insert(startNode);
 +
-+        Node[] neighbors = new Node[4];
++        Node[] neighbors = new Node[6];
 +        Node closestNode = null;
 +        int closestNodeHeuristic = -1;
 +        while (!nodeQueue.isEmpty()) {
@@ -259,14 +260,14 @@ index 0000000000000000000000000000000000000000..ba5f2c6dc52256235b4f54dc57eea267
 +}
 diff --git a/src/main/java/net/defade/yokura/pathfinder/PathFinder.java b/src/main/java/net/defade/yokura/pathfinder/PathFinder.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..95c6c3944cea99ecd14c0e97ffacc2c8f8115402
+index 0000000000000000000000000000000000000000..b0882117d98269882767ee0c4f6452aa6a64f47b
 --- /dev/null
 +++ b/src/main/java/net/defade/yokura/pathfinder/PathFinder.java
-@@ -0,0 +1,164 @@
+@@ -0,0 +1,169 @@
 +package net.defade.yokura.pathfinder;
 +
 +import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-+import net.defade.yokura.pathfinder.evaluator.WalkingEvaluator;
++import net.defade.yokura.pathfinder.evaluator.NodeEvaluator;
 +import net.defade.yokura.pathfinder.nodes.Node;
 +import net.minestom.server.collision.CollisionUtils;
 +import net.minestom.server.collision.PhysicsResult;
@@ -283,7 +284,7 @@ index 0000000000000000000000000000000000000000..95c6c3944cea99ecd14c0e97ffacc2c8
 +import java.util.concurrent.CompletableFuture;
 +import java.util.concurrent.ForkJoinPool;
 +
-+public class PathFinder {
++public final class PathFinder {
 +    private static final float ENTITY_REACHED_NODE_DISTANCE_SQRT = 0.25F; // A node will be considered as reached if the pathing entity
 +    // is at <= than sqrt(0.25) so 0.5 blocks.
 +
@@ -293,12 +294,13 @@ index 0000000000000000000000000000000000000000..95c6c3944cea99ecd14c0e97ffacc2c8
 +    private final Navigator entityNavigator;
 +
 +    private Path path = Path.EMPTY_PATH;
++    private boolean canFly;
 +    private LookController lookController = LookController.DEFAULT;
 +
 +    private int noJumpTicks = 0;
 +
 +    public PathFinder(Navigator navigator, EntityAI entityAI) {
-+        this.frontier = new Frontier(new WalkingEvaluator(entityAI));
++        this.frontier = new Frontier(new NodeEvaluator(entityAI));
 +        this.entityAI = entityAI;
 +        this.entity = entityAI.getEntity();
 +        this.entityNavigator = navigator;
@@ -307,6 +309,8 @@ index 0000000000000000000000000000000000000000..95c6c3944cea99ecd14c0e97ffacc2c8
 +    public CompletableFuture<Path> getPath(final Point startPoint, final Point arrivalPoint, boolean bestEffort) {
 +        CompletableFuture<Path> future = new CompletableFuture<>();
 +        ForkJoinPool.commonPool().execute(() -> {
++            this.canFly = entityAI.getCapabilities().contains(Capabilities.FLYING);
++
 +            // Entities are not perfectly on the ground, they are a bit inside it
 +            Point fixedStartPoint = startPoint.add(0, 0.1, 0);
 +            Point fixedArrivalPoint = arrivalPoint.add(0, 0.1, 0);
@@ -333,6 +337,7 @@ index 0000000000000000000000000000000000000000..95c6c3944cea99ecd14c0e97ffacc2c8
 +
 +            Collections.reverse(path);
 +
++            entity.setNoGravity(canFly);
 +            this.path = new Path(path);
 +            future.complete(this.path);
 +        });
@@ -355,15 +360,18 @@ index 0000000000000000000000000000000000000000..95c6c3944cea99ecd14c0e97ffacc2c8
 +                nextNode = stringPull();
 +            }
 +
-+            double yDiff = nextNode.getEntityPosY() - entityPos.y();
-+            if (yDiff > 0) {
-+                if (yDiff < 0.1) {
-+                    entityNavigator.jump(0.2F);
-+                } else if (yDiff <= 0.5) {
-+                    entityNavigator.jump(1);
-+                } else if (noJumpTicks <= 0) {
-+                    noJumpTicks = 10;
-+                    entityNavigator.jump(4F);
++            double nextMobY = canFly ? nextNode.getEntityPosY() : entityPos.y();
++            if(!canFly) {
++                double yDiff = nextNode.getEntityPosY() - entityPos.y();
++                if (yDiff > 0) {
++                    if (yDiff < 0.1) {
++                        entityNavigator.jump(0.2F);
++                    } else if (yDiff <= 0.5) {
++                        entityNavigator.jump(1);
++                    } else if (noJumpTicks <= 0) {
++                        noJumpTicks = 10;
++                        entityNavigator.jump(4F);
++                    }
 +                }
 +            }
 +
@@ -371,7 +379,7 @@ index 0000000000000000000000000000000000000000..95c6c3944cea99ecd14c0e97ffacc2c8
 +
 +            float yaw = lookController.getYaw(nextNode.getEntityPosX(), nextNode.getEntityPosY(), nextNode.getEntityPosZ(), entityAI);
 +            float pitch = lookController.getPitch(nextNode.getEntityPosX(), nextNode.getEntityPosY(), nextNode.getEntityPosZ(), entityAI);
-+            moveTowards(nextNode.getEntityPosX(), nextNode.getEntityPosZ(), yaw, pitch, entityAI.getMovementSpeed());
++            moveTowards(nextNode.getEntityPosX(), nextMobY, nextNode.getEntityPosZ(), yaw, pitch, entityAI.getMovementSpeed());
 +        }
 +    }
 +
@@ -379,20 +387,18 @@ index 0000000000000000000000000000000000000000..95c6c3944cea99ecd14c0e97ffacc2c8
 +        this.lookController = lookController == null ? LookController.DEFAULT : lookController;
 +    }
 +
-+    private void moveTowards(double x, double z, float yaw, float pitch, double speed) {
++    private void moveTowards(double x, double y, double z, float yaw, float pitch, double speed) {
 +        final Pos position = entity.getPosition();
 +        final double dx = x - position.x();
++        final double dy = y - position.y();
 +        final double dz = z - position.z();
-+        // the purpose of these few lines is to slow down entities when they reach their destination
-+        final double distSquared = dx * dx + dz * dz;
-+        if (speed > distSquared) {
-+            speed = distSquared;
-+        }
++
 +        final double radians = Math.atan2(dz, dx);
 +        final double speedX = Math.cos(radians) * speed;
++        final double speedY = dy * speed;
 +        final double speedZ = Math.sin(radians) * speed;
 +        // Prevent ghosting
-+        final var physicsResult = CollisionUtils.handlePhysics(entity, new Vec(speedX, 0, speedZ));
++        final var physicsResult = CollisionUtils.handlePhysics(entity, new Vec(speedX, speedY, speedZ));
 +        this.entity.refreshPosition(physicsResult.newPosition().withView(yaw, pitch));
 +    }
 +
@@ -426,51 +432,6 @@ index 0000000000000000000000000000000000000000..95c6c3944cea99ecd14c0e97ffacc2c8
 +    private static double distanceSquared(double x1, double y1, double z1, double x2, double y2, double z2) {
 +        return MathUtils.square(x1 - x2) + MathUtils.square(y1 - y2) + MathUtils.square(z1 - z2);
 +    }
-+}
-diff --git a/src/main/java/net/defade/yokura/pathfinder/evaluator/Evaluator.java b/src/main/java/net/defade/yokura/pathfinder/evaluator/Evaluator.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..9a024177cadf1ea88d3b81b71b1e470869f4c280
---- /dev/null
-+++ b/src/main/java/net/defade/yokura/pathfinder/evaluator/Evaluator.java
-@@ -0,0 +1,39 @@
-+package net.defade.yokura.pathfinder.evaluator;
-+
-+import net.defade.yokura.pathfinder.nodes.Node;
-+import net.minestom.server.entity.ai.EntityAI;
-+import org.jetbrains.annotations.NotNull;
-+import org.jetbrains.annotations.Nullable;
-+
-+public interface Evaluator {
-+    /**
-+     * Called before the pathfinder starts looking for a path.
-+     */
-+    void prepare();
-+
-+    /**
-+     * Called when the pathfinder found a path.
-+     */
-+    void end();
-+
-+    /**
-+     * @return the {@link EntityAI} of the pathfinding mob.
-+     */
-+    @NotNull EntityAI getEntity();
-+
-+    /**
-+     * @param from the node that was found before.
-+     * @param x the x coords of the node
-+     * @param y the y coords of the node
-+     * @param z the z coords of the node
-+     * @return a node for the corresponding position. Null if there's not enough information to define this type of node.
-+     */
-+    @Nullable Node getNode(@Nullable Node from, int x, int y, int z);
-+
-+    /**
-+     * Gets all the neighbor of a node.
-+     * @param neighbors The array that must be filled with the neighbors
-+     * @param node the node whose neighbors must be fetched
-+     */
-+    void getNeighbors(@Nullable Node[] neighbors, @NotNull Node node);
 +}
 diff --git a/src/main/java/net/defade/yokura/pathfinder/evaluator/MutablePos.java b/src/main/java/net/defade/yokura/pathfinder/evaluator/MutablePos.java
 new file mode 100644
@@ -605,27 +566,12 @@ index 0000000000000000000000000000000000000000..7c68069d8053dd947ea8f6dd43132e4b
 +        return div(value, value, value);
 +    }
 +}
-diff --git a/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeTypes.java b/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeTypes.java
+diff --git a/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeEvaluator.java b/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeEvaluator.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..05c2f8033b93245ae557f9e44125513b9280c587
+index 0000000000000000000000000000000000000000..4a26e5c844806276e28dfd0a122c751d919e4feb
 --- /dev/null
-+++ b/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeTypes.java
-@@ -0,0 +1,9 @@
-+package net.defade.yokura.pathfinder.evaluator;
-+
-+public enum NodeTypes {
-+    AIR_INVALID, // The node is an air block, but we can't go through it.
-+    OPEN, // It is an air block, and we can go through it (the block under it is a solid).
-+    WALKABLE, // It is a solid, but we can walk on it (slabs, carpets...)
-+    SOLID, // It is a full solid block. The entity can't go through it.
-+    BLOCKED, // The entity will collide.
-+}
-diff --git a/src/main/java/net/defade/yokura/pathfinder/evaluator/WalkingEvaluator.java b/src/main/java/net/defade/yokura/pathfinder/evaluator/WalkingEvaluator.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea91dd4e0c
---- /dev/null
-+++ b/src/main/java/net/defade/yokura/pathfinder/evaluator/WalkingEvaluator.java
-@@ -0,0 +1,309 @@
++++ b/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeEvaluator.java
+@@ -0,0 +1,321 @@
 +package net.defade.yokura.pathfinder.evaluator;
 +
 +import net.defade.yokura.pathfinder.Capabilities;
@@ -644,7 +590,7 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +import java.util.HashMap;
 +import java.util.Map;
 +
-+public class WalkingEvaluator implements Evaluator {
++public final class NodeEvaluator {
 +    private static final int WATER_BLOCK_ID = Block.WATER.id();
 +
 +    private static final int FIRE_BLOCK_ID = Block.FIRE.id();
@@ -658,7 +604,6 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +    private final EntityAI entityAI;
 +
 +    private final Map<Long, Node> nodeCache = new HashMap<>();
-+    private final MutablePos mutablePos = new MutablePos();
 +
 +    private Instance instance;
 +    private BoundingBox boundingBox;
@@ -666,12 +611,12 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +
 +    private boolean isFireResistant;
 +    private boolean isHydrophobic;
++    private boolean canFly;
 +
-+    public WalkingEvaluator(EntityAI entityAI) {
++    public NodeEvaluator(EntityAI entityAI) {
 +        this.entityAI = entityAI;
 +    }
 +
-+    @Override
 +    public void prepare() {
 +        this.instance = entityAI.getEntity().getInstance();
 +        this.boundingBox = entityAI.getEntity().getBoundingBox();
@@ -679,19 +624,17 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +
 +        this.isFireResistant = entityAI.getCapabilities().contains(Capabilities.FIRE_RESISTANT);
 +        this.isHydrophobic = entityAI.getCapabilities().contains(Capabilities.HYDROPHOBIC);
++        this.canFly = entityAI.getCapabilities().contains(Capabilities.FLYING);
 +    }
 +
-+    @Override
 +    public void end() {
 +        nodeCache.clear();
 +    }
 +
-+    @Override
 +    public @NotNull EntityAI getEntity() {
 +        return entityAI;
 +    }
 +
-+    @Override
 +    public @Nullable Node getNode(@Nullable Node from, int x, int y, int z) {
 +        long nodeHash = Node.uniqueHash(x, y, z);
 +        Node node = nodeCache.get(nodeHash);
@@ -713,7 +656,7 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +            if (isSolid(down)) {
 +                blockType = NodeTypes.OPEN;
 +            } else {
-+                blockType = NodeTypes.AIR_INVALID;
++                blockType = NodeTypes.AIR;
 +            }
 +        } else if (isSolid(block)) {
 +            if (canBeJumped(block)) {
@@ -725,8 +668,8 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +            blockType = NodeTypes.WALKABLE;
 +        }
 +
-+        MutablePos entityOffset = null;
-+        if (blockType != NodeTypes.AIR_INVALID && blockType != NodeTypes.SOLID) {
++        Pos entityOffset = null;
++        if (blockType == NodeTypes.OPEN || blockType == NodeTypes.WALKABLE || (canFly && blockType == NodeTypes.AIR)) {
 +            if (from != null) {
 +                entityOffset = collisionCheck(from, x, y, z, block.registry().collisionShape().relativeEnd().y(), boundingBox);
 +                if (entityOffset == null) {
@@ -735,7 +678,7 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +            }
 +        }
 +
-+        if (entityOffset == null) entityOffset = mutablePos.withX(x).withY(y).withZ(z);
++        if (entityOffset == null) entityOffset = new Pos(x, y, z);
 +        node = new Node(
 +                x, y, z,
 +                entityOffset.x(), entityOffset.y(), entityOffset.z(),
@@ -749,7 +692,6 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +        return node;
 +    }
 +
-+    @Override
 +    public void getNeighbors(@Nullable Node[] neighbors, @NotNull Node center) {
 +        Node north = getNode(center, center.getX(), center.getY(), center.getZ() - 1);
 +        Node south = getNode(center, center.getX(), center.getY(), center.getZ() + 1);
@@ -758,16 +700,28 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +
 +        // We're doing this in order to avoid straight lines.
 +        // See more here: https://www.redblobgames.com/pathfinding/a-star/implementation.html#ties-checkerboard-neighbors
-+        if ((center.getX() + center.getZ()) % 2 == 0) {
++        if ((center.getX() + center.getY() + center.getZ()) % 2 == 0) {
 +            if (south != null) neighbors[0] = verifyNeighbor(center, south);
 +            if (north != null) neighbors[1] = verifyNeighbor(center, north);
 +            if (west != null) neighbors[2] = verifyNeighbor(center, west);
 +            if (east != null) neighbors[3] = verifyNeighbor(center, east);
++            if (canFly) {
++                Node up = getNode(center, center.getX(), center.getY() + 1, center.getZ());
++                Node down = getNode(center, center.getX(), center.getY() - 1, center.getZ());
++                if(up != null && up.getBlockType() == NodeTypes.AIR) neighbors[4] = up;
++                if(down != null) neighbors[5] = verifyNeighbor(center, down);
++            }
 +        } else {
-+            if (east != null) neighbors[0] = verifyNeighbor(center, east);
-+            if (west != null) neighbors[1] = verifyNeighbor(center, west);
-+            if (north != null) neighbors[2] = verifyNeighbor(center, north);
-+            if (south != null) neighbors[3] = verifyNeighbor(center, south);
++            if (canFly) {
++                Node up = getNode(center, center.getX(), center.getY() + 1, center.getZ());
++                Node down = getNode(center, center.getX(), center.getY() - 1, center.getZ());
++                if(up != null && up.getBlockType() == NodeTypes.AIR) neighbors[0] = up;
++                if(down != null) neighbors[1] = verifyNeighbor(center, down);
++            }
++            if (east != null) neighbors[2] = verifyNeighbor(center, east);
++            if (west != null) neighbors[3] = verifyNeighbor(center, west);
++            if (north != null) neighbors[4] = verifyNeighbor(center, north);
++            if (south != null) neighbors[5] = verifyNeighbor(center, south);
 +        }
 +    }
 +
@@ -783,11 +737,15 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +
 +        if (neighbor.getBlockType() == NodeTypes.OPEN || neighbor.getBlockType() == NodeTypes.WALKABLE) return neighbor;
 +
-+        if (neighbor.getBlockType() == NodeTypes.AIR_INVALID) {
-+            Node down = getNode(center, neighbor.getX(), neighbor.getY() - 1, neighbor.getZ());
-+            if (down == null) return null;
-+            if (down.getBlockType() == NodeTypes.WALKABLE || down.getBlockType() == NodeTypes.OPEN) {
-+                return down;
++        if (neighbor.getBlockType() == NodeTypes.AIR) {
++            if (canFly) {
++                return neighbor;
++            } else {
++                Node down = getNode(center, neighbor.getX(), neighbor.getY() - 1, neighbor.getZ());
++                if (down == null) return null;
++                if (down.getBlockType() == NodeTypes.WALKABLE || down.getBlockType() == NodeTypes.OPEN) {
++                    return down;
++                }
 +            }
 +        }
 +
@@ -834,9 +792,9 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +     * @param y           the y coordinates
 +     * @param z           the z coordinates
 +     * @param boundingBox the bounding box of the pathfinder entity
-+     * @return a {@link MutablePos} containing the coordinates that the pathfinding entity must go to.
++     * @return a {@link Pos} containing the coordinates that the pathfinding entity must go to.
 +     */
-+    private @Nullable MutablePos collisionCheck(Node from, int x, int y, int z, double yBlockOffset, BoundingBox boundingBox) {
++    private @Nullable Pos collisionCheck(Node from, int x, int y, int z, double yBlockOffset, BoundingBox boundingBox) {
 +        double yOffset = isColliding(x, y, z, boundingBox);
 +
 +        if (yOffset == -1) {
@@ -863,12 +821,12 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +                            if(physicsResult.collisionX() || physicsResult.collisionZ()) continue;
 +                        }
 +
-+                        return mutablePos.withX(blockX + 0.5).withY(y + colliding).withZ(blockZ + 0.5);
++                        return new Pos(blockX + 0.5, y + colliding, blockZ + 0.5);
 +                    }
 +                }
 +            }
 +        } else {
-+            return mutablePos.withX(x + 0.5).withY(y + yOffset).withZ(z + 0.5);
++            return new Pos(x + 0.5, y + yOffset, z + 0.5);
 +        }
 +
 +        return null;
@@ -903,7 +861,7 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +                        yOffset = block.registry().collisionShape().relativeEnd().y();
 +                    }
 +
-+                    if (block.registry().collisionShape().intersectBox(mutablePos.with(x + 0.5, y + yOffset, z + 0.5).sub(blockX, blockY, blockZ), boundingBox)) {
++                    if (block.registry().collisionShape().intersectBox(new Pos(x + 0.5, y + yOffset, z + 0.5).sub(blockX, blockY, blockZ), boundingBox)) {
 +                        return -1;
 +                    }
 +                }
@@ -934,6 +892,21 @@ index 0000000000000000000000000000000000000000..15bf047dac7d326a176e4d1376caabea
 +    public static int ceil(double number) {
 +        return number < 0 ? (int) number : (int) number + 1;
 +    }
++}
+diff --git a/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeTypes.java b/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeTypes.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..e0cb3eb53cc6b7372d1b5077c5977930c272f2bf
+--- /dev/null
++++ b/src/main/java/net/defade/yokura/pathfinder/evaluator/NodeTypes.java
+@@ -0,0 +1,9 @@
++package net.defade.yokura.pathfinder.evaluator;
++
++public enum NodeTypes {
++    AIR, // It is an air block and the block under it is air too.
++    OPEN, // It is an air block, and we can go through it (the block under it is a solid).
++    WALKABLE, // It is a solid, but we can walk on it (slabs, carpets...)
++    SOLID, // It is a full solid block. The entity can't go through it.
++    BLOCKED, // The entity will collide.
 +}
 diff --git a/src/main/java/net/defade/yokura/pathfinder/nodes/Node.java b/src/main/java/net/defade/yokura/pathfinder/nodes/Node.java
 new file mode 100644
