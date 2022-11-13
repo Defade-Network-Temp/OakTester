@@ -5,7 +5,7 @@ Subject: [PATCH] Add MongoDB
 
 
 diff --git a/build.gradle.kts b/build.gradle.kts
-index 6a98456c98162b3090495831d72ab81bddb41ba0..aa0ec5de854cf14a69772aa55ed1bc028461a75f 100644
+index 2cbbf04eb01afd21277bc995b7c969cecbb3dfd4..1f6396ed981ae7bd97c05ff02f5a42960fe32646 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
 @@ -87,6 +87,7 @@ dependencies {

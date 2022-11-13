@@ -53,7 +53,7 @@ index b63a95323b4e20af1c36f29f24c623d978016696..a9518601c3775e9a3654f410b7f5eece
  }
 \ No newline at end of file
 diff --git a/build.gradle.kts b/build.gradle.kts
-index 5c8299fcc971fb481b428e22efdf1e92051f4b3c..39200e231bb32f3dcd595de3ed55ddbcc3e3aa99 100644
+index 5c8299fcc971fb481b428e22efdf1e92051f4b3c..984b5e93b6c8c57296f61d039a50e15a20ae7c73 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
 @@ -5,9 +5,8 @@ plugins {
@@ -64,7 +64,7 @@ index 5c8299fcc971fb481b428e22efdf1e92051f4b3c..39200e231bb32f3dcd595de3ed55ddbc
 -    version = "1.0"
 -    description = "Lightweight and multi-threaded Minecraft server implementation"
 +    group = "net.defade"
-+    version = "1.19.2-R1.0-SNAPSHOT"
++    version = "1.19.2-R1.1-SNAPSHOT"
  }
  
  sourceSets {

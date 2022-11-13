@@ -5,7 +5,7 @@ Subject: [PATCH] Pathfinder
 
 
 diff --git a/build.gradle.kts b/build.gradle.kts
-index aa0ec5de854cf14a69772aa55ed1bc028461a75f..8aaf1895075adff0b154c26df9d0bab1ed1f99ad 100644
+index 1f6396ed981ae7bd97c05ff02f5a42960fe32646..ad77099576459a154084f21c1d9a1d9e0a383138 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
 @@ -71,8 +71,6 @@ dependencies {

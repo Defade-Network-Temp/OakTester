@@ -6,7 +6,7 @@ Subject: [PATCH] Add Amethyst chunk loader
 
 diff --git a/src/main/java/net/defade/yokura/amethyst/AmethystChunk.java b/src/main/java/net/defade/yokura/amethyst/AmethystChunk.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..f98d707aa1c4bfb4fe7b5297943c46e3d9c8e57c
+index 0000000000000000000000000000000000000000..75b6964270f455db0adda9186c37448fcd627e45
 --- /dev/null
 +++ b/src/main/java/net/defade/yokura/amethyst/AmethystChunk.java
 @@ -0,0 +1,16 @@
@@ -16,7 +16,7 @@ index 0000000000000000000000000000000000000000..f98d707aa1c4bfb4fe7b5297943c46e3
 +import net.minestom.server.instance.Instance;
 +import org.jetbrains.annotations.NotNull;
 +
-+public class AmethystChunk extends DynamicChunk {
++class AmethystChunk extends DynamicChunk {
 +    public AmethystChunk(@NotNull Instance instance, int chunkX, int chunkZ) {
 +        super(instance, chunkX, chunkZ);
 +    }
@@ -28,10 +28,10 @@ index 0000000000000000000000000000000000000000..f98d707aa1c4bfb4fe7b5297943c46e3
 +}
 diff --git a/src/main/java/net/defade/yokura/amethyst/AmethystChunkLoader.java b/src/main/java/net/defade/yokura/amethyst/AmethystChunkLoader.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..d875a3346541f4e52f400e60b3132112a1713c4d
+index 0000000000000000000000000000000000000000..9beb2c40894df1558b15a8e791228153b490dc38
 --- /dev/null
 +++ b/src/main/java/net/defade/yokura/amethyst/AmethystChunkLoader.java
-@@ -0,0 +1,376 @@
+@@ -0,0 +1,372 @@
 +package net.defade.yokura.amethyst;
 +
 +import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -224,6 +224,14 @@ index 0000000000000000000000000000000000000000..d875a3346541f4e52f400e60b3132112
 +
 +                    section.biomePalette().createFlexiblePalette(biomeBitsPerEntry, biomePaletteToValueList, biomeCount, biomeValues);
 +                }
++
++                byte[] blockLightData = new byte[byteBuffer.getShort()];
++                byteBuffer.get(blockLightData);
++                section.setBlockLight(blockLightData);
++
++                byte[] skyLightData = new byte[byteBuffer.getShort()];
++                byteBuffer.get(skyLightData);
++                section.setSkyLight(skyLightData);
 +            }
 +
 +            int blockEntitiesAmount = byteBuffer.getInt();
@@ -280,7 +288,7 @@ index 0000000000000000000000000000000000000000..d875a3346541f4e52f400e60b3132112
 +        }
 +
 +        try {
-+            int arraySize = Byte.BYTES; // Pre-calculating the array size allows us to define the original byte array size, avoiding useless and costly resizes.
++            int arraySize = Byte.BYTES + 64; // Pre-calculating the array size allows us to define the original byte array size, avoiding useless and costly resizes.
 +            for (int i = 0; i < chunk.getSections().size(); i++) {
 +                AdaptivePalette blockPalette = chunk.getSections().get(i).blockPalette();
 +                AdaptivePalette biomePalette = chunk.getSections().get(i).biomePalette();
@@ -308,53 +316,16 @@ index 0000000000000000000000000000000000000000..d875a3346541f4e52f400e60b3132112
 +            dataOutputStream.write((byte) chunk.getSections().size());
 +
 +            for (Section section : chunk.getSections()) {
-+                AdaptivePalette blockPalette = section.blockPalette();
-+                if (blockPalette.isFilledPalette()) {
-+                    dataOutputStream.write(0);
-+                    dataOutputStream.writeShort((short) blockPalette.get(0, 0, 0));
-+                } else {
-+                    FlexiblePalette flexiblePalette = blockPalette.getAsFlexiblePalette();
-+                    dataOutputStream.write(1);
-+                    dataOutputStream.write((byte) flexiblePalette.bitsPerEntry());
++                savePalette(section.blockPalette(), dataOutputStream);
++                savePalette(section.biomePalette(), dataOutputStream);
 +
-+                    IntArrayList blockPaletteToValueList = flexiblePalette.paletteToValueList();
-+                    dataOutputStream.writeShort((short) blockPaletteToValueList.size());
-+                    for (int value : blockPaletteToValueList) {
-+                        dataOutputStream.writeShort((short) value);
-+                    }
++                byte[] blockLightData = section.getBlockLight();
++                dataOutputStream.writeShort(blockLightData.length);
++                dataOutputStream.write(blockLightData);
 +
-+                    dataOutputStream.writeShort((short) flexiblePalette.count());
-+
-+                    long[] blockValues = flexiblePalette.values();
-+                    dataOutputStream.writeShort((short) blockValues.length);
-+                    for (long blockValue : blockValues) {
-+                        dataOutputStream.writeLong(blockValue);
-+                    }
-+                }
-+
-+                AdaptivePalette biomePalette = section.biomePalette();
-+                if (biomePalette.isFilledPalette()) {
-+                    dataOutputStream.write(0);
-+                    dataOutputStream.writeShort((short) biomePalette.get(0, 0, 0));
-+                } else {
-+                    FlexiblePalette flexiblePalette = biomePalette.getAsFlexiblePalette();
-+                    dataOutputStream.write(1);
-+                    dataOutputStream.write((byte) flexiblePalette.bitsPerEntry());
-+
-+                    IntArrayList biomePaletteToValueList = flexiblePalette.paletteToValueList();
-+                    dataOutputStream.writeShort((short) biomePaletteToValueList.size());
-+                    for (int value : biomePaletteToValueList) {
-+                        dataOutputStream.writeShort((short) value);
-+                    }
-+
-+                    dataOutputStream.writeShort((short) flexiblePalette.count());
-+
-+                    long[] biomeValues = flexiblePalette.values();
-+                    dataOutputStream.writeShort((short) biomeValues.length);
-+                    for (long biomeValue : biomeValues) {
-+                        dataOutputStream.writeLong(biomeValue);
-+                    }
-+                }
++                byte[] skyLightData = section.getSkyLight();
++                dataOutputStream.writeShort(skyLightData.length);
++                dataOutputStream.write(skyLightData);
 +            }
 +
 +            Int2ObjectOpenHashMap<Block> blockEntities = chunk.getBlockEntities();
@@ -406,6 +377,31 @@ index 0000000000000000000000000000000000000000..d875a3346541f4e52f400e60b3132112
 +
 +    public void setConfig(String config) {
 +        this.config = config;
++    }
++
++    private static void savePalette(AdaptivePalette palette, DataOutputStream dataOutputStream) throws IOException {
++        if (palette.isFilledPalette()) {
++            dataOutputStream.write(0);
++            dataOutputStream.writeShort((short) palette.get(0, 0, 0));
++        } else {
++            FlexiblePalette flexiblePalette = palette.getAsFlexiblePalette();
++            dataOutputStream.write(1);
++            dataOutputStream.write((byte) flexiblePalette.bitsPerEntry());
++
++            IntArrayList biomePaletteToValueList = flexiblePalette.paletteToValueList();
++            dataOutputStream.writeShort((short) biomePaletteToValueList.size());
++            for (int value : biomePaletteToValueList) {
++                dataOutputStream.writeShort((short) value);
++            }
++
++            dataOutputStream.writeShort((short) flexiblePalette.count());
++
++            long[] biomeValues = flexiblePalette.values();
++            dataOutputStream.writeShort((short) biomeValues.length);
++            for (long biomeValue : biomeValues) {
++                dataOutputStream.writeLong(biomeValue);
++            }
++        }
 +    }
 +}
 diff --git a/src/main/java/net/defade/yokura/amethyst/AmethystSource.java b/src/main/java/net/defade/yokura/amethyst/AmethystSource.java
