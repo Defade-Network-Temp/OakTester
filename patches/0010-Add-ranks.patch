@@ -46,7 +46,7 @@ index 0000000000000000000000000000000000000000..a0b1c9a5858e058bee26620720edadda
 +    }
 +}
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index 1f790323d01391025d38df9d13fab266a5e32e13..793a7c7aefa9a63c538905404402b7ee3b55f074 100644
+index dfa601bc1573f7adad4108a9ae5e1cd384a25c10..75bfa177b6143e99d5cff406df408709066a059e 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
 @@ -1,6 +1,7 @@
@@ -57,7 +57,7 @@ index 1f790323d01391025d38df9d13fab266a5e32e13..793a7c7aefa9a63c538905404402b7ee
  import net.defade.yokura.event.player.NetworkLevelChangeEvent;
  import net.defade.yokura.utils.MongoUtils;
  import net.kyori.adventure.audience.MessageType;
-@@ -214,6 +215,7 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -215,6 +216,7 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
      private double crystals;
      private int networkLevel;
      private int networkXp;
@@ -65,7 +65,7 @@ index 1f790323d01391025d38df9d13fab266a5e32e13..793a7c7aefa9a63c538905404402b7ee
  
      public Player(@NotNull UUID uuid, @NotNull String username, @NotNull PlayerConnection playerConnection) {
          super(EntityType.PLAYER, uuid);
-@@ -256,7 +258,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -257,7 +259,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
                      .append("crystals", MinecraftServer.getBismuth().getNetworkInfos().getDefaultCrystals())
                      .append("level", 0)
                      .append("xp", 0)
@@ -75,7 +75,7 @@ index 1f790323d01391025d38df9d13fab266a5e32e13..793a7c7aefa9a63c538905404402b7ee
  
              MongoUtils.insertDocument("players", playerData);
          }
-@@ -265,6 +268,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -266,6 +269,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
          crystals = playerData.getDouble("crystals");
          networkLevel = playerData.getInteger("level");
          networkXp = playerData.getInteger("xp");
@@ -84,7 +84,7 @@ index 1f790323d01391025d38df9d13fab266a5e32e13..793a7c7aefa9a63c538905404402b7ee
  
          for(Document permissions : playerData.getList("permissions", Document.class)) {
              NBTCompound nbt = null;
-@@ -385,6 +390,17 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -386,6 +391,17 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
          });
      }
  

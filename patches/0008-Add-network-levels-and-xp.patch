@@ -35,7 +35,7 @@ index 0000000000000000000000000000000000000000..5eb1137c8818c4529e6c7a6ce1bb55a3
 +    }
 +}
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index 9f2a0f37a8b507a49048490f7cc90d32d654dca1..d144d0192285e1067ce2be05baa2137163a83fbf 100644
+index ce736a95f331f8c984b33e048314487f8e3f7644..4b910b23b7166f744406abb08462ffa2336d79bd 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
 @@ -1,6 +1,7 @@
@@ -46,7 +46,7 @@ index 9f2a0f37a8b507a49048490f7cc90d32d654dca1..d144d0192285e1067ce2be05baa21371
  import net.defade.yokura.utils.MongoUtils;
  import net.kyori.adventure.audience.MessageType;
  import net.kyori.adventure.bossbar.BossBar;
-@@ -207,6 +208,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -208,6 +209,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
      // Yokura
      private double endermites;
      private double crystals;
@@ -55,7 +55,7 @@ index 9f2a0f37a8b507a49048490f7cc90d32d654dca1..d144d0192285e1067ce2be05baa21371
  
      public Player(@NotNull UUID uuid, @NotNull String username, @NotNull PlayerConnection playerConnection) {
          super(EntityType.PLAYER, uuid);
-@@ -246,13 +249,17 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -247,13 +250,17 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
          if(playerData == null) {
              playerData = new Document("_id", getUuid().toString())
                      .append("endermites", MinecraftServer.getBismuth().getNetworkInfos().getDefaultEndermites())
@@ -74,7 +74,7 @@ index 9f2a0f37a8b507a49048490f7cc90d32d654dca1..d144d0192285e1067ce2be05baa21371
      }
  
      public void addEndermites(double endermites) {
-@@ -301,6 +308,31 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -302,6 +309,31 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
          return this.crystals >= crystals;
      }
  

@@ -17,7 +17,7 @@ index 2cbbf04eb01afd21277bc995b7c969cecbb3dfd4..1f6396ed981ae7bd97c05ff02f5a4296
      // NBT parsing/manipulation/saving
      api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
 diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
-index 4619874991eb81544e6eefa9f6573f140f11f958..fc29713c8779f91dc400c273177dd4418e7d6abd 100644
+index 7bef1a17b994784a2da87947b7e3b8e97a61d73a..e33cb3a2b0dc16035ed6fb12091b24bca952ba42 100644
 --- a/gradle/libs.versions.toml
 +++ b/gradle/libs.versions.toml
 @@ -40,6 +40,7 @@ jmh = "1.35"
@@ -28,7 +28,7 @@ index 4619874991eb81544e6eefa9f6573f140f11f958..fc29713c8779f91dc400c273177dd441
  
  [libraries]
  
-@@ -99,6 +100,7 @@ jmh-annotationprocessor = { group = "org.openjdk.jmh", name = "jmh-generator-ann
+@@ -100,6 +101,7 @@ jmh-annotationprocessor = { group = "org.openjdk.jmh", name = "jmh-generator-ann
  jcstress-core = { group = "org.openjdk.jcstress", name = "jcstress-core", version.ref = "jcstress" }
  
  bismuth = { group = "net.defade.bismuth", name = "client", version.ref = "bismuth" }
@@ -142,7 +142,7 @@ index 0000000000000000000000000000000000000000..5cd43615a51802acfeb6e6d5cf1ed7e5
 +}
 \ No newline at end of file
 diff --git a/src/main/java/net/minestom/server/MinecraftServer.java b/src/main/java/net/minestom/server/MinecraftServer.java
-index c37519935a0c48791759543cfcfb292ef7c91ac7..d3c9ae17f98f78cfbea6d87c4b6e15b278c159b2 100644
+index aa2c6c755606cef444e70f3d737d745d9ffaec0c..6154dfc3f38b612e7d4d439a0e85432c59f8664d 100644
 --- a/src/main/java/net/minestom/server/MinecraftServer.java
 +++ b/src/main/java/net/minestom/server/MinecraftServer.java
 @@ -1,5 +1,7 @@
@@ -152,8 +152,8 @@ index c37519935a0c48791759543cfcfb292ef7c91ac7..d3c9ae17f98f78cfbea6d87c4b6e15b2
 +import com.mongodb.client.MongoDatabase;
  import net.defade.yokura.YokuraPacketListener;
  import net.defade.yokura.servers.ServerAPI;
- import net.minestom.server.advancements.AdvancementManager;
-@@ -321,6 +323,14 @@ public final class MinecraftServer {
+ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
+@@ -320,6 +322,14 @@ public final class MinecraftServer {
          return serverProcess.serverApi();
      }
  

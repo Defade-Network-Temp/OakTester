@@ -18,7 +18,7 @@ index 984b5e93b6c8c57296f61d039a50e15a20ae7c73..f0dbea64306d98e05d933cae8ed51d8f
      api("io.github.jglrxavpok.hephaistos:common:${libs.versions.hephaistos.get()}")
      api("io.github.jglrxavpok.hephaistos:gson:${libs.versions.hephaistos.get()}")
 diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
-index 28b30556efd165418319c2a14b0e09f5cde30715..4619874991eb81544e6eefa9f6573f140f11f958 100644
+index 6f7cf0b175dfb4825f23362f7842f19b1c005c7b..7bef1a17b994784a2da87947b7e3b8e97a61d73a 100644
 --- a/gradle/libs.versions.toml
 +++ b/gradle/libs.versions.toml
 @@ -39,6 +39,8 @@ jmh = "1.35"
@@ -30,7 +30,7 @@ index 28b30556efd165418319c2a14b0e09f5cde30715..4619874991eb81544e6eefa9f6573f14
  [libraries]
  
  # Important Dependencies
-@@ -96,6 +98,8 @@ jmh-annotationprocessor = { group = "org.openjdk.jmh", name = "jmh-generator-ann
+@@ -97,6 +99,8 @@ jmh-annotationprocessor = { group = "org.openjdk.jmh", name = "jmh-generator-ann
  # JCStress
  jcstress-core = { group = "org.openjdk.jcstress", name = "jcstress-core", version.ref = "jcstress" }
  
@@ -108,17 +108,17 @@ index 0000000000000000000000000000000000000000..a4a26aa927e73beed35308641c1ecfe9
 +    }
 +}
 diff --git a/src/main/java/net/minestom/server/MinecraftServer.java b/src/main/java/net/minestom/server/MinecraftServer.java
-index 7b43a30b0eb653d692ac9f6d8bd64b5146df5075..aef3ad4be58ef24ad0ba027c843f46fc5023a5f4 100644
+index 077c6f728637e4cf18f6e42038e0974323cf2549..7bad2785f659fd45b5c47db3f8887c83324536cb 100644
 --- a/src/main/java/net/minestom/server/MinecraftServer.java
 +++ b/src/main/java/net/minestom/server/MinecraftServer.java
 @@ -1,5 +1,6 @@
  package net.minestom.server;
  
 +import net.defade.yokura.YokuraPacketListener;
+ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
  import net.minestom.server.advancements.AdvancementManager;
  import net.minestom.server.adventure.bossbar.BossBarManager;
- import net.minestom.server.command.CommandManager;
-@@ -311,6 +312,10 @@ public final class MinecraftServer {
+@@ -310,6 +311,10 @@ public final class MinecraftServer {
          return serverProcess.server();
      }
  

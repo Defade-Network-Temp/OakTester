@@ -18,18 +18,18 @@ index 1f6396ed981ae7bd97c05ff02f5a42960fe32646..ad77099576459a154084f21c1d9a1d9e
      // Adventure, for user-interface
      api(libs.bundles.adventure)
 diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
-index fc29713c8779f91dc400c273177dd4418e7d6abd..d466005e4b186fcffe5a27f650a7b6ba7446d474 100644
+index e33cb3a2b0dc16035ed6fb12091b24bca952ba42..d9dedad6b6b19ff072cc2aa3a8e84925fbf55cc6 100644
 --- a/gradle/libs.versions.toml
 +++ b/gradle/libs.versions.toml
 @@ -5,7 +5,6 @@ metadata.format.version = "1.1"
  # Important dependencies
- adventure = "4.11.0"
- kotlin = "1.6.20"
+ adventure = "4.12.0"
+ kotlin = "1.7.22"
 -hydrazine = "1.7.2"
  dependencyGetter = "v1.0.1"
  minestomData = "1c1921cd41"
  hephaistos = "2.5.3"
-@@ -56,7 +55,6 @@ kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", vers
+@@ -57,7 +56,6 @@ kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", vers
  kotlin-stdlib-jdk8 = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib-jdk8", version.ref = "kotlin" }
  
  # Miscellaneous
@@ -1951,7 +1951,7 @@ index f3a956621d034160679817830519facd96378518..60455420f731598d9b0bb61aa083be14
       * Used to verify if the chunk should still be kept in memory.
       *
 diff --git a/src/main/java/net/minestom/server/instance/DynamicChunk.java b/src/main/java/net/minestom/server/instance/DynamicChunk.java
-index a3fc44202f5c400d5e2d05e464ba85624c7a4927..c68ea7d20bbfb0a8f3f058d0ceeb3d53f46c3e80 100644
+index 0280273b5fc84eb8b3de4fac20c6a95d98e54d66..c767d33c01b72e99b3c4d87be30f1f47774853ab 100644
 --- a/src/main/java/net/minestom/server/instance/DynamicChunk.java
 +++ b/src/main/java/net/minestom/server/instance/DynamicChunk.java
 @@ -1,12 +1,10 @@
@@ -1966,8 +1966,8 @@ index a3fc44202f5c400d5e2d05e464ba85624c7a4927..c68ea7d20bbfb0a8f3f058d0ceeb3d53
 -import net.minestom.server.entity.pathfinding.PFBlock;
  import net.minestom.server.instance.block.Block;
  import net.minestom.server.instance.block.BlockHandler;
- import net.minestom.server.network.packet.server.CachedPacket;
-@@ -74,12 +72,7 @@ public class DynamicChunk extends Chunk {
+ import net.minestom.server.network.NetworkBuffer;
+@@ -73,12 +71,7 @@ public class DynamicChunk extends Chunk {
          this.lastChange = System.currentTimeMillis();
          this.chunkCache.invalidate();
          this.lightCache.invalidate();

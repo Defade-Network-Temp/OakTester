@@ -346,18 +346,18 @@ index f6d76c2d4af327c1bfe1bbc0bb507b5a4519cf82..a0af2629e4689a1424203f51b9cc56f2
              exception.handleException(e);
              throw new RuntimeException(e);
 diff --git a/src/main/java/net/minestom/server/extensions/Extension.java b/src/main/java/net/minestom/server/extensions/Extension.java
-index 1130e83ec7beae5f31e43e7d9384ab1016babf1c..6477a461e0174ca94ab5c77fc244a398468b8ca4 100644
+index 020f229cb228f4726bcff4fee1aa223100147073..37c4340d7c02be77d0fab03c5afe24fb7da22dd7 100644
 --- a/src/main/java/net/minestom/server/extensions/Extension.java
 +++ b/src/main/java/net/minestom/server/extensions/Extension.java
 @@ -1,5 +1,6 @@
  package net.minestom.server.extensions;
  
 +import net.defade.bismuth.core.servers.GameType;
+ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
  import net.minestom.server.event.Event;
  import net.minestom.server.event.EventNode;
- import org.jetbrains.annotations.NotNull;
-@@ -56,6 +57,11 @@ public abstract class Extension {
- 
+@@ -53,6 +54,11 @@ public abstract class Extension {
+         throw new IllegalStateException("Extension class loader is not an ExtensionClassLoader");
      }
  
 +    @Nullable
@@ -367,9 +367,9 @@ index 1130e83ec7beae5f31e43e7d9384ab1016babf1c..6477a461e0174ca94ab5c77fc244a398
 +
      @NotNull
      public DiscoveredExtension getOrigin() {
-         return origin;
+         return getExtensionClassLoader().getDiscoveredExtension();
 diff --git a/src/main/java/net/minestom/server/extensions/ExtensionManager.java b/src/main/java/net/minestom/server/extensions/ExtensionManager.java
-index 7c92fd60acc7fba93ac788ed1f9869f6fb0560b8..8ed349ff58e4ece4ea6ad73e35db1a32724546fe 100644
+index dfb9be46b11aaf55d7ae03f6b4a216eedcd37470..2f56e1b7eb23f8b7e9c630f92d6d218a0984c56a 100644
 --- a/src/main/java/net/minestom/server/extensions/ExtensionManager.java
 +++ b/src/main/java/net/minestom/server/extensions/ExtensionManager.java
 @@ -1,6 +1,7 @@
@@ -380,7 +380,7 @@ index 7c92fd60acc7fba93ac788ed1f9869f6fb0560b8..8ed349ff58e4ece4ea6ad73e35db1a32
  import net.minestom.dependencies.DependencyGetter;
  import net.minestom.dependencies.ResolvedDependency;
  import net.minestom.dependencies.maven.MavenRepository;
-@@ -743,4 +744,17 @@ public class ExtensionManager {
+@@ -697,4 +698,17 @@ public class ExtensionManager {
          // cleanup classloader
          // TODO: Is it necessary to remove the CLs since this is only called on shutdown?
      }
@@ -399,10 +399,10 @@ index 7c92fd60acc7fba93ac788ed1f9869f6fb0560b8..8ed349ff58e4ece4ea6ad73e35db1a32
 +    }
  }
 diff --git a/src/main/java/net/minestom/server/extras/velocity/VelocityProxy.java b/src/main/java/net/minestom/server/extras/velocity/VelocityProxy.java
-index 9fc8923986fe106e8e9693ff9026d829e9cf913c..2aa0bb4dc4ab19aaea113fd3e5c88202dc5e0f55 100644
+index c817ed425d676a82dca296919d3adffd071a761c..211e1cccbf52e2639ab2c081d0d4b1b42b827bb1 100644
 --- a/src/main/java/net/minestom/server/extras/velocity/VelocityProxy.java
 +++ b/src/main/java/net/minestom/server/extras/velocity/VelocityProxy.java
-@@ -18,7 +18,7 @@ import java.security.NoSuchAlgorithmException;
+@@ -15,7 +15,7 @@ import static net.minestom.server.network.NetworkBuffer.*;
  /**
   * Support for <a href="https://velocitypowered.com/">Velocity</a> modern forwarding.
   * <p>
@@ -411,7 +411,7 @@ index 9fc8923986fe106e8e9693ff9026d829e9cf913c..2aa0bb4dc4ab19aaea113fd3e5c88202
   */
  public final class VelocityProxy {
      public static final String PLAYER_INFO_CHANNEL = "velocity:player_info";
-@@ -34,9 +34,9 @@ public final class VelocityProxy {
+@@ -31,9 +31,9 @@ public final class VelocityProxy {
       * @param secret the forwarding secret,
       *               be sure to do not hardcode it in your code but to retrieve it from a file or anywhere else safe
       */

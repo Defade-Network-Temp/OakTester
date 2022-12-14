@@ -5,18 +5,18 @@ Subject: [PATCH] Store player permissions to DB
 
 
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index d144d0192285e1067ce2be05baa2137163a83fbf..1f790323d01391025d38df9d13fab266a5e32e13 100644
+index 4b910b23b7166f744406abb08462ffa2336d79bd..dfa601bc1573f7adad4108a9ae5e1cd384a25c10 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
-@@ -60,6 +60,7 @@ import net.minestom.server.network.packet.server.login.LoginDisconnectPacket;
- import net.minestom.server.network.packet.server.play.*;
+@@ -61,6 +61,7 @@ import net.minestom.server.network.packet.server.play.*;
+ import net.minestom.server.network.player.GameProfile;
  import net.minestom.server.network.player.PlayerConnection;
  import net.minestom.server.network.player.PlayerSocketConnection;
 +import net.minestom.server.permission.Permission;
  import net.minestom.server.recipe.Recipe;
  import net.minestom.server.recipe.RecipeManager;
  import net.minestom.server.resourcepack.ResourcePack;
-@@ -92,7 +93,10 @@ import org.jetbrains.annotations.NotNull;
+@@ -93,7 +94,10 @@ import org.jetbrains.annotations.NotNull;
  import org.jetbrains.annotations.Nullable;
  import org.jglrxavpok.hephaistos.nbt.NBT;
  import org.jglrxavpok.hephaistos.nbt.NBTCompound;
@@ -27,7 +27,7 @@ index d144d0192285e1067ce2be05baa2137163a83fbf..1f790323d01391025d38df9d13fab266
  import java.nio.charset.StandardCharsets;
  import java.time.Duration;
  import java.util.*;
-@@ -251,7 +255,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -252,7 +256,8 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
                      .append("endermites", MinecraftServer.getBismuth().getNetworkInfos().getDefaultEndermites())
                      .append("crystals", MinecraftServer.getBismuth().getNetworkInfos().getDefaultCrystals())
                      .append("level", 0)
@@ -37,7 +37,7 @@ index d144d0192285e1067ce2be05baa2137163a83fbf..1f790323d01391025d38df9d13fab266
  
              MongoUtils.insertDocument("players", playerData);
          }
-@@ -260,6 +265,19 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -261,6 +266,19 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
          crystals = playerData.getDouble("crystals");
          networkLevel = playerData.getInteger("level");
          networkXp = playerData.getInteger("xp");
@@ -57,7 +57,7 @@ index d144d0192285e1067ce2be05baa2137163a83fbf..1f790323d01391025d38df9d13fab266
      }
  
      public void addEndermites(double endermites) {
-@@ -333,6 +351,40 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -334,6 +352,40 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
          MongoUtils.executeAsync(() -> MongoUtils.updateValue("players", getUuid().toString(), "xp", getNetworkXp()));
      }
  

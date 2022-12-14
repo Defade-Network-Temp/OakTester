@@ -696,10 +696,10 @@ index 71086a0591c2f25967651e5f7ce600dcf466779f..f3a956621d034160679817830519facd
       * Sets a block at a position.
       * <p>
 diff --git a/src/main/java/net/minestom/server/instance/DynamicChunk.java b/src/main/java/net/minestom/server/instance/DynamicChunk.java
-index 6b7230f3ddf6b2d3ac5fb82060e427276ecc3618..a3fc44202f5c400d5e2d05e464ba85624c7a4927 100644
+index 027b182c84d68b8395c405270ea521c76c597e30..0280273b5fc84eb8b3de4fac20c6a95d98e54d66 100644
 --- a/src/main/java/net/minestom/server/instance/DynamicChunk.java
 +++ b/src/main/java/net/minestom/server/instance/DynamicChunk.java
-@@ -57,6 +57,17 @@ public class DynamicChunk extends Chunk {
+@@ -56,6 +56,17 @@ public class DynamicChunk extends Chunk {
          this.sections = List.of(sectionsTemp);
      }
  
@@ -718,19 +718,20 @@ index 6b7230f3ddf6b2d3ac5fb82060e427276ecc3618..a3fc44202f5c400d5e2d05e464ba8562
      public void setBlock(int x, int y, int z, @NotNull Block block) {
          assertLock();
 diff --git a/src/main/java/net/minestom/server/instance/Section.java b/src/main/java/net/minestom/server/instance/Section.java
-index edda1189dcc5c14aa7bb60c861b4f13098e9725c..6f9b2f39889973bc0310ee7d3e4451d17a0c4498 100644
+index f9c4e49bfc2f813486aac34d2cdac8d59a5f7a14..93c522aa2750b0152698df29c03fa04de40f7c2b 100644
 --- a/src/main/java/net/minestom/server/instance/Section.java
 +++ b/src/main/java/net/minestom/server/instance/Section.java
-@@ -1,17 +1,18 @@
+@@ -1,5 +1,6 @@
  package net.minestom.server.instance;
  
 +import net.minestom.server.instance.palette.AdaptivePalette;
  import net.minestom.server.instance.palette.Palette;
- import net.minestom.server.utils.binary.BinaryWriter;
- import net.minestom.server.utils.binary.Writeable;
+ import net.minestom.server.network.NetworkBuffer;
  import org.jetbrains.annotations.NotNull;
+@@ -7,12 +8,12 @@ import org.jetbrains.annotations.NotNull;
+ import static net.minestom.server.network.NetworkBuffer.SHORT;
  
- public final class Section implements Writeable {
+ public final class Section implements NetworkBuffer.Writer {
 -    private Palette blockPalette;
 -    private Palette biomePalette;
 +    private AdaptivePalette blockPalette;
@@ -743,7 +744,7 @@ index edda1189dcc5c14aa7bb60c861b4f13098e9725c..6f9b2f39889973bc0310ee7d3e4451d1
                      byte[] skyLight, byte[] blockLight) {
          this.blockPalette = blockPalette;
          this.biomePalette = biomePalette;
-@@ -24,11 +25,11 @@ public final class Section implements Writeable {
+@@ -25,11 +26,11 @@ public final class Section implements NetworkBuffer.Writer {
                  new byte[0], new byte[0]);
      }
  
@@ -758,7 +759,7 @@ index edda1189dcc5c14aa7bb60c861b4f13098e9725c..6f9b2f39889973bc0310ee7d3e4451d1
      }
  
 diff --git a/src/main/java/net/minestom/server/instance/palette/AdaptivePalette.java b/src/main/java/net/minestom/server/instance/palette/AdaptivePalette.java
-index 6b36f3748bc46134fa68781494eb4a874919be50..7746cbede57918afae056329728b0a0fc6db2cc5 100644
+index d64930f9a95605c08dbe2fca7cecc1003be37e82..ca4ac703a88d7d7d3c45d572cf437b5db6af4fe8 100644
 --- a/src/main/java/net/minestom/server/instance/palette/AdaptivePalette.java
 +++ b/src/main/java/net/minestom/server/instance/palette/AdaptivePalette.java
 @@ -1,5 +1,6 @@
@@ -767,7 +768,7 @@ index 6b36f3748bc46134fa68781494eb4a874919be50..7746cbede57918afae056329728b0a0f
 +import it.unimi.dsi.fastutil.ints.IntArrayList;
  import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
  import it.unimi.dsi.fastutil.ints.IntSet;
- import net.minestom.server.utils.MathUtils;
+ import net.minestom.server.network.NetworkBuffer;
 @@ -11,7 +12,7 @@ import java.util.function.IntUnaryOperator;
  /**
   * Palette that switches between its backend based on the use case.
@@ -807,10 +808,10 @@ index 6b36f3748bc46134fa68781494eb4a874919be50..7746cbede57918afae056329728b0a0f
              AdaptivePalette adaptivePalette = (AdaptivePalette) super.clone();
              adaptivePalette.palette = palette.clone();
 diff --git a/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java b/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java
-index d5429247b619c30168f0369f03d33aeadfb675c4..313971931625c8c1d87db035396afa13ed037c80 100644
+index f5b9b907b770d553b03c79ba3eb5bab0afb77909..7a4460061ec52a51c6191e9307e295521afa9634 100644
 --- a/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java
 +++ b/src/main/java/net/minestom/server/instance/palette/FlexiblePalette.java
-@@ -14,7 +14,7 @@ import java.util.function.IntUnaryOperator;
+@@ -16,7 +16,7 @@ import static net.minestom.server.network.NetworkBuffer.*;
  /**
   * Palette able to take any value anywhere. May consume more memory than required.
   */
@@ -819,7 +820,7 @@ index d5429247b619c30168f0369f03d33aeadfb675c4..313971931625c8c1d87db035396afa13
      private static final ThreadLocal<int[]> WRITE_CACHE = ThreadLocal.withInitial(() -> new int[4096]);
  
      // Specific to this palette type
-@@ -43,6 +43,22 @@ final class FlexiblePalette implements SpecializedPalette, Cloneable {
+@@ -45,6 +45,22 @@ final class FlexiblePalette implements SpecializedPalette, Cloneable {
          this.values = new long[(maxSize() + valuesPerLong - 1) / valuesPerLong];
      }
  
@@ -842,12 +843,12 @@ index d5429247b619c30168f0369f03d33aeadfb675c4..313971931625c8c1d87db035396afa13
      FlexiblePalette(AdaptivePalette adaptivePalette) {
          this(adaptivePalette, adaptivePalette.defaultBitsPerEntry);
      }
-@@ -191,6 +207,14 @@ final class FlexiblePalette implements SpecializedPalette, Cloneable {
+@@ -193,6 +209,14 @@ final class FlexiblePalette implements SpecializedPalette, Cloneable {
          return adaptivePalette.dimension();
      }
  
 +    public IntArrayList paletteToValueList() {
-+        return paletteToValueList;
++        return paletteToValueList; 
 +    }
 +
 +    public long[] values() {
@@ -857,7 +858,7 @@ index d5429247b619c30168f0369f03d33aeadfb675c4..313971931625c8c1d87db035396afa13
      @Override
      public @NotNull SpecializedPalette clone() {
          try {
-@@ -267,9 +291,9 @@ final class FlexiblePalette implements SpecializedPalette, Cloneable {
+@@ -269,9 +293,9 @@ final class FlexiblePalette implements SpecializedPalette, Cloneable {
      void resize(byte newBitsPerEntry) {
          newBitsPerEntry = newBitsPerEntry > maxBitsPerEntry() ? 15 : newBitsPerEntry;
          FlexiblePalette palette = new FlexiblePalette(adaptivePalette, newBitsPerEntry);
@@ -870,13 +871,13 @@ index d5429247b619c30168f0369f03d33aeadfb675c4..313971931625c8c1d87db035396afa13
          this.values = palette.values;
          assert this.count == palette.count;
 diff --git a/src/main/java/net/minestom/server/instance/palette/Palette.java b/src/main/java/net/minestom/server/instance/palette/Palette.java
-index 5a07685e9ae707851fae486ad0a7133a3b787ad3..f0dbd2dcf8d273cbadba7e46e0d4b4b4932c9eb8 100644
+index 93a14b9b3cbbfeee8463d671aefea9873e0ff443..6e466487cdee0614987698ee70ecd34b616391c7 100644
 --- a/src/main/java/net/minestom/server/instance/palette/Palette.java
 +++ b/src/main/java/net/minestom/server/instance/palette/Palette.java
 @@ -11,15 +11,15 @@ import java.util.function.IntUnaryOperator;
   * 0 is the default value.
   */
- public interface Palette extends Writeable {
+ public interface Palette extends NetworkBuffer.Writer {
 -    static Palette blocks() {
 +    static AdaptivePalette blocks() {
          return newPalette(16, 8, 4);

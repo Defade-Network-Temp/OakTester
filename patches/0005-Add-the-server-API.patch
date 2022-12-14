@@ -176,7 +176,7 @@ index 0000000000000000000000000000000000000000..1df7780b67ed9ae9d517cbcfd568c6b0
 +    }
 +}
 diff --git a/src/main/java/net/minestom/server/MinecraftServer.java b/src/main/java/net/minestom/server/MinecraftServer.java
-index aef3ad4be58ef24ad0ba027c843f46fc5023a5f4..c37519935a0c48791759543cfcfb292ef7c91ac7 100644
+index 7bad2785f659fd45b5c47db3f8887c83324536cb..aa2c6c755606cef444e70f3d737d745d9ffaec0c 100644
 --- a/src/main/java/net/minestom/server/MinecraftServer.java
 +++ b/src/main/java/net/minestom/server/MinecraftServer.java
 @@ -1,6 +1,7 @@
@@ -184,10 +184,10 @@ index aef3ad4be58ef24ad0ba027c843f46fc5023a5f4..c37519935a0c48791759543cfcfb292e
  
  import net.defade.yokura.YokuraPacketListener;
 +import net.defade.yokura.servers.ServerAPI;
+ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
  import net.minestom.server.advancements.AdvancementManager;
  import net.minestom.server.adventure.bossbar.BossBarManager;
- import net.minestom.server.command.CommandManager;
-@@ -316,6 +317,10 @@ public final class MinecraftServer {
+@@ -315,6 +316,10 @@ public final class MinecraftServer {
          return serverProcess.bismuth();
      }
  
@@ -273,7 +273,7 @@ index a0af2629e4689a1424203f51b9cc56f2279d34fa..8b738c6c77996f07f264ad82990c448a
          try {
              connectFuture.get();
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index e2f3946b86613292af40a9ec222883e3c5f9c385..e4d683c976f09a4e3123ca61657fac7987cd7200 100644
+index 901fb6b0ce882b81da00a79754c0e9c1f2235bcf..faea051f7f0419f5fea88df7bba94c3705802fe1 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
 @@ -1,5 +1,6 @@
@@ -283,7 +283,7 @@ index e2f3946b86613292af40a9ec222883e3c5f9c385..e4d683c976f09a4e3123ca61657fac79
  import net.kyori.adventure.audience.MessageType;
  import net.kyori.adventure.bossbar.BossBar;
  import net.kyori.adventure.identity.Identified;
-@@ -659,6 +660,30 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -695,6 +696,30 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
          sendPluginMessage(channel, message.getBytes(StandardCharsets.UTF_8));
      }
  

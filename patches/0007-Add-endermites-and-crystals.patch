@@ -5,7 +5,7 @@ Subject: [PATCH] Add endermites and crystals
 
 
 diff --git a/src/main/java/net/minestom/server/entity/Player.java b/src/main/java/net/minestom/server/entity/Player.java
-index e4d683c976f09a4e3123ca61657fac7987cd7200..9f2a0f37a8b507a49048490f7cc90d32d654dca1 100644
+index faea051f7f0419f5fea88df7bba94c3705802fe1..ce736a95f331f8c984b33e048314487f8e3f7644 100644
 --- a/src/main/java/net/minestom/server/entity/Player.java
 +++ b/src/main/java/net/minestom/server/entity/Player.java
 @@ -1,6 +1,7 @@
@@ -16,7 +16,7 @@ index e4d683c976f09a4e3123ca61657fac7987cd7200..9f2a0f37a8b507a49048490f7cc90d32
  import net.kyori.adventure.audience.MessageType;
  import net.kyori.adventure.bossbar.BossBar;
  import net.kyori.adventure.identity.Identified;
-@@ -82,6 +83,7 @@ import net.minestom.server.utils.time.Cooldown;
+@@ -83,6 +84,7 @@ import net.minestom.server.utils.time.Cooldown;
  import net.minestom.server.utils.time.TimeUnit;
  import net.minestom.server.utils.validate.Check;
  import net.minestom.server.world.DimensionType;
@@ -24,7 +24,7 @@ index e4d683c976f09a4e3123ca61657fac7987cd7200..9f2a0f37a8b507a49048490f7cc90d32
  import org.jctools.queues.MessagePassingQueue;
  import org.jctools.queues.MpscUnboundedXaddArrayQueue;
  import org.jetbrains.annotations.ApiStatus;
-@@ -202,6 +204,10 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -203,6 +205,10 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
      private Identity identity;
      private final Pointers pointers;
  
@@ -35,7 +35,7 @@ index e4d683c976f09a4e3123ca61657fac7987cd7200..9f2a0f37a8b507a49048490f7cc90d32
      public Player(@NotNull UUID uuid, @NotNull String username, @NotNull PlayerConnection playerConnection) {
          super(EntityType.PLAYER, uuid);
          this.username = username;
-@@ -234,6 +240,67 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
+@@ -235,6 +241,67 @@ public class Player extends LivingEntity implements CommandSender, Localizable,
                  .build();
      }
  
